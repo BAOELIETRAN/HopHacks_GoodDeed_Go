@@ -3,9 +3,10 @@ anthropic>=0.115.0
 requests>=2.31.0
 python-dotenv>=1.0.0   # reads your .env file
 
-# Optional: only needed if you run the HTTP wrapper in gooddeed_agent/service.py
+# Backend layer (FastAPI + SQLite) -- also covers the AI agent's optional HTTP wrapper
 fastapi>=0.110.0
 uvicorn>=0.29.0
+sqlalchemy>=2.0.0
 
 # Dev
 pytest>=8.0.0
