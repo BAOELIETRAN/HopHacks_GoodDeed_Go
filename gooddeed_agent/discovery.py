@@ -595,6 +595,7 @@ def find_opportunities(
     verify: bool = False,
     max_verify: int = 5,
     include_description: bool = False,
+    include_website: bool = False,
     places: PlacesProvider | None = None,
     llm: LLMProvider | None = None,
 ) -> list[dict[str, Any]]:
@@ -620,6 +621,10 @@ def find_opportunities(
             default because it costs one LLM call per org; turn it on for a
             curated map refresh rather than every pan of the viewport.
         max_verify: How many of the top results to verify when ``verify`` is on.
+        include_website: Add a ``website`` key with the organization's own
+            site, when Places knows one. Opt-in for the same reason as
+            ``include_description``: the default return value has to stay
+            exactly the seven Opportunity contract fields.
         include_description: Add a ``description`` key carrying the one-line
             web-search summary of the org. Requires ``verify=True`` to be
             populated (that search is where the text comes from); otherwise it
@@ -706,6 +711,10 @@ def find_opportunities(
             legitimacy_score=legitimacy,
             quest_type=quest_type_for(category),
         ).to_dict()
+        if include_website:
+            # Fetched all along for the legitimacy heuristic and then thrown
+            # away, which left the UI with no way to link anywhere.
+            record["website"] = place.get("website") or ""
         if include_description:
             # Extra key, never a renamed one -- consumers expecting the bare
             # seven-field contract are unaffected.

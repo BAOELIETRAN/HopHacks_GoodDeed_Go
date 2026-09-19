@@ -53,13 +53,18 @@ setNavigateHook((name, route) => {
   // The active-quest screen runs a heartbeat loop; leaving it must stop that.
   if (name !== "active") teardownActive();
 
+  // Chrome elements are optional: a screen must still render if the shell
+  // around it is missing, rather than taking the whole app down.
   const nav = document.getElementById("nav");
-  nav.hidden = !route.nav;
-  nav.querySelectorAll("button").forEach((b) =>
-    b.toggleAttribute("aria-current", b.dataset.route === name));
+  if (nav) {
+    nav.hidden = !route.nav;
+    nav.querySelectorAll("button").forEach((b) =>
+      b.toggleAttribute("aria-current", b.dataset.route === name));
+  }
 
   // Surface placeholder mode so stub data is never mistaken for a live backend.
-  document.getElementById("mockbanner").hidden = !state.usingMocks;
+  const banner = document.getElementById("mockbanner");
+  if (banner) banner.hidden = !state.usingMocks;
 });
 
 buildNav();

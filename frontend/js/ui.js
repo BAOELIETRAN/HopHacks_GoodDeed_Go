@@ -76,6 +76,19 @@ export function directionsUrl(lat, lng, travelmode = "walking") {
   return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
 
+/** A link to find out more about an organization.
+ *
+ *  Their own site when Places knows one, otherwise a search for the name
+ *  and address. A dead "learn more" is worse than a search: people use
+ *  this to check a place is real before travelling to it.
+ */
+export function orgLink(org) {
+  const url = (org?.website || "").trim();
+  if (url) return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  const q = [org?.org_name, org?.address].filter(Boolean).join(" ");
+  return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+}
+
 /** Countdown text for an expiring claim, e.g. "2h 14m left". */
 export function timeLeft(iso) {
   if (!iso) return "";

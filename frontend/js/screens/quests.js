@@ -3,8 +3,8 @@
 import { api, getLocation } from "../api.js";
 import { radiusKm } from "../config.js";
 import {
-  directionsUrl, distanceLabel, empty, esc, h, icon, prettyCategory, radiusPicker,
-  spinner, statusbar,
+  directionsUrl, distanceLabel, empty, esc, h, icon, orgLink, prettyCategory,
+  radiusPicker, spinner, statusbar,
 } from "../ui.js";
 import { go } from "../router.js";
 
@@ -82,16 +82,23 @@ function questCard(q) {
           <div class="tiny">pts</div>
         </div>
       </div>
-      <div class="row-between" style="margin-top:12px;gap:10px">
-        <a class="btn-directions" data-directions target="_blank" rel="noopener noreferrer">🧭 Directions</a>
-        <button class="btn btn-primary btn-sm" data-open>View quest</button>
+      <div class="row" style="margin-top:12px;gap:8px">
+        <a class="btn-directions" data-directions target="_blank" rel="noopener noreferrer">🧭</a>
+        <a class="btn-directions" data-website target="_blank" rel="noopener noreferrer">🔗</a>
+        <button class="btn btn-primary btn-sm grow" data-open>View quest</button>
       </div>
     </div>`);
 
-  const link = card.querySelector("[data-directions]");
-  link.href = directionsUrl(q.lat, q.lng);
-  // The whole card navigates, so the link must not also trigger that.
-  link.onclick = (e) => e.stopPropagation();
+  // The whole card navigates, so links must not also trigger that.
+  const dirs = card.querySelector("[data-directions]");
+  dirs.href = directionsUrl(q.lat, q.lng);
+  dirs.title = "Directions";
+  dirs.onclick = (e) => e.stopPropagation();
+
+  const site = card.querySelector("[data-website]");
+  site.href = orgLink(q);
+  site.title = q.website ? "Their website" : "Look them up";
+  site.onclick = (e) => e.stopPropagation();
 
   card.querySelector("[data-open]").onclick = (e) => {
     e.stopPropagation();

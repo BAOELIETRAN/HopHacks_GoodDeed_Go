@@ -29,7 +29,7 @@ export const FALLBACK_LOCATION = { lat: 39.3299, lng: -76.6205 };
 // centre is dense at 1 mile; a suburb can be empty at 5. The backend takes
 // km and caps at 50 (~31 miles).
 export const RADIUS_CHOICES_MI = [1, 3, 5, 10, 25];
-export const DEFAULT_RADIUS_MI = 5;
+export const DEFAULT_RADIUS_MI = 10;
 const MI_TO_KM = 1.609344;
 
 export function getRadiusMiles() {

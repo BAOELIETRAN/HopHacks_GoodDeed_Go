@@ -3,7 +3,8 @@
 
 import { api, ApiError, getLocation, setSession, state } from "../api.js";
 import {
-  deedIcon, directionsUrl, distanceLabel, esc, h, icon, prettyCategory, setupPhotoInput,
+  deedIcon, directionsUrl, distanceLabel, esc, h, icon, orgLink, prettyCategory,
+  setupPhotoInput,
   statusbar, toast,
 } from "../ui.js";
 import { go } from "../router.js";
@@ -53,9 +54,14 @@ export function renderQuest(root, { quest }) {
         <span class="chip chip-quiet">${esc(prettyCategory(quest.category))}</span>
       </div>
 
-      <a class="btn-directions full" data-directions target="_blank" rel="noopener noreferrer">
-        <span style="font-size:16px">🧭</span> Get directions in Google Maps
-      </a>
+      <div class="btn-row" style="gap:10px">
+        <a class="btn-directions" data-directions target="_blank" rel="noopener noreferrer">
+          🧭 Directions
+        </a>
+        <a class="btn-directions" data-website target="_blank" rel="noopener noreferrer">
+          🔗 ${quest.website ? "Their website" : "Look them up"}
+        </a>
+      </div>
 
       <div class="card">
         <h3>Where to go</h3>
@@ -101,6 +107,10 @@ export function renderQuest(root, { quest }) {
 
   root.querySelector("[data-back]").onclick = () => history.back();
   root.querySelector("[data-directions]").href = directionsUrl(quest.lat, quest.lng);
+  // Places knows a website for most orgs. When it doesn't, a search for the
+  // name and address beats a dead link -- people still want to check the
+  // place is real before walking there.
+  root.querySelector("[data-website]").href = orgLink(quest);
 
   const startBtn = root.querySelector("[data-start]");
   const note = root.querySelector("#startnote");

@@ -33,7 +33,8 @@ class Cause:
     title: str
     icon: str
     blurb: str
-    unit: str                # what one unit of impact is
+    unit: str                # one unit of impact, singular
+    unit_plural: str         # explicit: "nights of shelter", not "night of shelters"
     points_per_unit: int     # team points that represent one unit
     source: str              # where the ratio comes from, shown in the UI
 
@@ -45,6 +46,7 @@ CAUSES: tuple[Cause, ...] = (
         icon="🍲",
         blurb="Food banks turn a small amount of support into a lot of meals.",
         unit="meal",
+        unit_plural="meals",
         points_per_unit=3,
         source="Feeding America publishes roughly 10 meals per $1 donated",
     ),
@@ -54,6 +56,7 @@ CAUSES: tuple[Cause, ...] = (
         icon="🛏️",
         blurb="A bed, a shower and a hot meal for someone sleeping rough.",
         unit="night of shelter",
+        unit_plural="nights of shelter",
         points_per_unit=60,
         source="Typical US shelter cost per bed-night, ~$30",
     ),
@@ -63,6 +66,7 @@ CAUSES: tuple[Cause, ...] = (
         icon="🌳",
         blurb="Street trees cool neighbourhoods and clean the air for decades.",
         unit="tree planted",
+        unit_plural="trees planted",
         points_per_unit=20,
         source="One Tree Planted plants one tree per $1",
     ),
@@ -72,6 +76,7 @@ CAUSES: tuple[Cause, ...] = (
         icon="📚",
         blurb="A child with books at home reads better for years afterwards.",
         unit="book",
+        unit_plural="books",
         points_per_unit=8,
         source="Reading Is Fundamental, roughly $4 per book placed",
     ),
@@ -81,6 +86,7 @@ CAUSES: tuple[Cause, ...] = (
         icon="🐾",
         blurb="Food and care for animals waiting to be rehomed.",
         unit="day of care",
+        unit_plural="days of care",
         points_per_unit=12,
         source="Typical shelter cost of ~$6 per animal per day",
     ),

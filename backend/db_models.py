@@ -261,6 +261,8 @@ class Opportunity(Base):
     category: Mapped[str] = mapped_column(String(64))
     legitimacy_score: Mapped[float] = mapped_column(Float)
     quest_type: Mapped[str] = mapped_column(String(16))
+    # The organization's own site, for the "learn more" link on a quest.
+    website: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     # cache bookkeeping
     cache_key: Mapped[str] = mapped_column(String(64), index=True)

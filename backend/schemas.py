@@ -90,6 +90,7 @@ class OpportunityOut(BaseModel):
     verified: bool
     estimated_points: int
     distance_km: float
+    website: Optional[str] = None
 
 
 # --- everyday deeds (tap to complete) -------------------------------------
@@ -282,6 +283,7 @@ class CauseOut(BaseModel):
     icon: str
     blurb: str
     unit: str
+    unit_plural: str
     points_per_unit: int
     source: str
     selected: bool = False

@@ -80,16 +80,20 @@ export async function renderToday(root) {
         <div class="impact-headline">
           <span class="impact-ico">${d.cause.icon}</span>
           <div>
-            <strong>${d.units.toLocaleString()} ${esc(d.unit_label)}</strong>
-            <em>${esc(d.cause.title)}</em>
+            ${d.units > 0
+              ? `<strong>${d.units.toLocaleString()} ${esc(d.unit_label)}</strong>
+                 <em>${esc(d.cause.title)}</em>`
+              : `<strong>${esc(d.cause.title)}</strong>
+                 <em>${esc(d.cause.blurb)}</em>`}
           </div>
         </div>
-        <div class="bar on-light" style="margin-top:12px">
+        <div class="bar" style="margin-top:12px">
           <i style="width:${Math.round(((d.cause.points_per_unit - d.points_to_next_unit) / d.cause.points_per_unit) * 100)}%"></i>
         </div>
         <p class="tiny" style="margin-top:8px">
           ${d.points_to_next_unit} more ${d.points_to_next_unit === 1 ? "point" : "points"}
-          for the next ${esc(d.cause.unit)}${d.has_team ? ` · ${d.member_count} on the team` : ""}
+          for ${d.units > 0 ? "the next" : "your first"} ${esc(d.cause.unit)}${
+            d.has_team ? ` · ${d.member_count} on the team` : ""}
         </p>
         <p class="impact-source">Estimate · ${esc(d.cause.source)}. Points measure effort, not money.</p>
         <button class="btn-link" data-change-cause>Change cause</button>

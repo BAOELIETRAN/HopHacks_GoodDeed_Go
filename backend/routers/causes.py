@@ -63,7 +63,7 @@ def team_impact(
         your_points=user.tier_points or 0,
         cause=_cause_out(cause, cause.key),
         units=units,
-        unit_label=cause.unit + ("" if units == 1 else "s"),
+        unit_label=cause.unit if units == 1 else cause.unit_plural,
         points_to_next_unit=cause.points_per_unit - remainder,
         causes=[_cause_out(c, cause.key) for c in CAUSES],
     )

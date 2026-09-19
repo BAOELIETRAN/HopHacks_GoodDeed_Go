@@ -28,7 +28,12 @@ export const currentRoute = () => current;
 
 export async function dispatch() {
   const name = location.hash.replace(/^#/, "") || (state.token ? "today" : "welcome");
-  const route = routes.get(name) || routes.get("today");
+  const route = routes.get(name) || routes.get("today") || routes.get("welcome");
+
+  // No route resolved at all. Happens if a hashchange fires before the
+  // route table is built, or from a hand-typed URL. Doing nothing is
+  // correct; throwing here took down whatever screen was already up.
+  if (!route) return;
 
   // Guard authenticated routes. Placeholder data still renders without a
   // backend, but a real session is required before we pretend to be signed in.

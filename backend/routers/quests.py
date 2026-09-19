@@ -52,7 +52,9 @@ def _refresh_in_background(key: str, lat: float, lng: float, radius: float) -> N
         # returned, which is the point of doing this off the request path.
         db = SessionLocal()
         try:
-            opportunities = find_opportunities(lat, lng, radius, max_results=_cap_for(radius))
+            opportunities = find_opportunities(
+                lat, lng, radius, max_results=_cap_for(radius), include_website=True
+            )
             if not opportunities:
                 return  # keep the stale rows rather than emptying the map
             _replace_cache(db, key, opportunities)
@@ -88,6 +90,7 @@ def _replace_cache(db: DbSession, key: str, opportunities: list[dict]) -> None:
                 "lat": o["lat"], "lng": o["lng"], "category": o["category"],
                 "legitimacy_score": o["legitimacy_score"],
                 "quest_type": o["quest_type"], "cache_key": key, "cached_at": now,
+                "website": o.get("website") or None,
             }
             for o in opportunities
         ],
@@ -98,7 +101,7 @@ def _replace_cache(db: DbSession, key: str, opportunities: list[dict]) -> None:
 def get_quests(
     lat: float = Query(...),
     lng: float = Query(...),
-    radius: float = Query(default=5.0, gt=0, le=50, description="km"),
+    radius: float = Query(default=16.0, gt=0, le=50, description="km (~10 miles)"),
     db: DbSession = Depends(get_db),
     _user: m.User = Depends(get_current_user),
 ) -> list[OpportunityOut]:
@@ -119,7 +122,9 @@ def get_quests(
             _refresh_in_background(key, lat, lng, radius)
         return [_to_out(row, lat, lng) for row in cached]
 
-    opportunities = find_opportunities(lat, lng, radius, max_results=_cap_for(radius))
+    opportunities = find_opportunities(
+        lat, lng, radius, max_results=_cap_for(radius), include_website=True
+    )
 
     # Answer from what we already have in memory, and persist the cache off
     # the response path. Writing 60 rows to a hosted Postgres took longer
@@ -167,6 +172,7 @@ def _sorted_dicts(opportunities: list[dict], lat: float, lng: float) -> list[Opp
             verified=o["legitimacy_score"] >= VERIFIED_LEGITIMACY_THRESHOLD,
             estimated_points=estimate_points(o["category"], o["quest_type"]),
             distance_km=round(haversine_km(lat, lng, o["lat"], o["lng"]), 2),
+            website=o.get("website") or None,
         )
         for o in opportunities
     ]
@@ -186,4 +192,5 @@ def _to_out(row: m.Opportunity, requester_lat: float, requester_lng: float) -> O
         verified=row.legitimacy_score >= VERIFIED_LEGITIMACY_THRESHOLD,
         estimated_points=estimate_points(row.category, row.quest_type),
         distance_km=round(haversine_km(requester_lat, requester_lng, row.lat, row.lng), 2),
+        website=row.website,
     )

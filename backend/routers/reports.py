@@ -165,7 +165,7 @@ def create_report(
 def list_reports(
     lat: float = Query(...),
     lng: float = Query(...),
-    radius: float = Query(default=5.0, gt=0, le=50, description="km"),
+    radius: float = Query(default=16.0, gt=0, le=50, description="km (~10 miles)"),
     status: Optional[Literal["open", "claimed", "done"]] = Query(
         default=None, description="Omit for the general feed (open + claimed, i.e. not yet done)"
     ),
