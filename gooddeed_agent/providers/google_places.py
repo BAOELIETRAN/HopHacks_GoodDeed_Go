@@ -11,6 +11,7 @@ Requires a Google Maps Platform key with **Places API (New)** enabled.
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Sequence
 
 import requests
@@ -39,6 +40,10 @@ _FIELD_MASK = ",".join(
 # Google caps the location bias radius at 50km.
 _MAX_RADIUS_M = 50_000
 
+# Parallel Places requests. Enough to keep a broad search fast without
+# tripping per-project QPS limits.
+_MAX_WORKERS = 8
+
 
 class GooglePlacesProvider:
     """Implements :class:`PlacesProvider` against Places API (New)."""
@@ -63,20 +68,40 @@ class GooglePlacesProvider:
         # let the caller's dedupe/ranking pick the winners.
         per_query = max(3, min(20, max_results))
 
+        # Queries are independent, so fan them out. A broad philanthropic
+        # search is 20-50 requests; serially that is tens of seconds.
+        ordered: list[list[dict[str, Any]] | None] = [None] * len(queries)
+        auth_error: ProviderError | None = None
+
+        with ThreadPoolExecutor(max_workers=min(_MAX_WORKERS, max(1, len(queries)))) as pool:
+            futures = {
+                pool.submit(self._search_text, query, lat, lng, radius_m, per_query): index
+                for index, query in enumerate(queries)
+            }
+            for future in as_completed(futures):
+                index = futures[future]
+                try:
+                    ordered[index] = future.result()
+                except ProviderError as exc:
+                    # A bad key fails every query identically -- report it
+                    # rather than returning a silently empty map.
+                    auth_error = auth_error or exc
+                    ordered[index] = []
+                except Exception as exc:  # one flaky query must not kill the batch
+                    log.warning("Places query %r failed: %s", queries[index], exc)
+                    ordered[index] = []
+
+        if auth_error is not None and not any(ordered):
+            raise auth_error
+
+        # Merge in query order, not completion order, so results are
+        # deterministic and the first (most relevant) query still wins.
         seen: dict[str, dict[str, Any]] = {}
-        for query in queries:
-            try:
-                places = self._search_text(query, lat, lng, radius_m, per_query)
-            except ProviderError:
-                raise
-            except Exception as exc:  # network hiccup on one query shouldn't kill the batch
-                log.warning("Places query %r failed: %s", query, exc)
-                continue
-            for place in places:
+        for query, places in zip(queries, ordered):
+            for place in places or []:
                 record = self._normalize(place, query)
                 if record is None:
                     continue
-                # First query to surface a place wins; it is the most relevant one.
                 seen.setdefault(record["place_id"], record)
 
         return list(seen.values())[:max_results]

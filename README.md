@@ -50,6 +50,26 @@ web-search summary of the org (needs `verify=True` to be populated). It's
 opt-in so the default return value matches the seven-field Opportunity
 contract exactly.
 
+#### Search breadth
+
+Discovery covers 15 philanthropic domains — food, housing, animals,
+environment, health, seniors, youth/education, crisis, veterans, disability,
+immigrant services, goods, community, disaster, arts — as 54 queries in
+`QUERY_PACKS`.
+
+```python
+find_opportunities(lat, lng, 5)                          # 18-query default
+find_opportunities(lat, lng, 5, packs=["food", "crisis"])  # one or more domains
+find_opportunities(lat, lng, 5, packs=["all"], max_queries=60)  # everything
+find_opportunities(lat, lng, 5, queries=["beach cleanup"])      # your own
+```
+
+**Each query is one billed Places request.** The default fan-out takes the
+broadest one or two queries from every domain; `packs=["all"]` roughly triples
+the cost per refresh. `max_queries` (default 24) is the guard — raise it
+deliberately. Queries run concurrently (8 at a time), so 18 queries take about
+as long as 3, and results stay deterministic regardless of completion order.
+
 A Places failure returns `[]` rather than raising.
 
 ### `score_submission(photo, description, org_name, time_spent_minutes, **opts) -> dict`

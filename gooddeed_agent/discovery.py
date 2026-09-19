@@ -16,20 +16,151 @@ from .scoring import normalize_category, quest_type_for
 
 log = logging.getLogger("gooddeed_agent.discovery")
 
-#: Text queries fanned out to Places. The Places type taxonomy has no
-#: "nonprofit" type, so these carry the search.
+#: Philanthropic search queries, grouped by domain.
+#:
+#: The Places taxonomy has no "nonprofit" type -- most charities come back as
+#: ``point_of_interest, establishment`` -- so these text queries carry the
+#: search. Each one is a separate Places request, which is what makes breadth
+#: cost money; see ``DEFAULT_QUERIES`` below.
+QUERY_PACKS: dict[str, tuple[str, ...]] = {
+    "food": (
+        "food bank",
+        "soup kitchen",
+        "food pantry",
+        "community fridge",
+        "meal delivery charity",
+    ),
+    "housing": (
+        "homeless shelter",
+        "rescue mission",
+        "transitional housing nonprofit",
+        "habitat for humanity",
+    ),
+    "animals": (
+        "animal shelter",
+        "animal rescue",
+        "humane society",
+        "wildlife rehabilitation center",
+    ),
+    "environment": (
+        "environmental nonprofit",
+        "conservation organization",
+        "community garden",
+        "park conservancy",
+        "nature center",
+    ),
+    "health": (
+        "free clinic",
+        "blood donation center",
+        "hospice",
+        "health nonprofit",
+    ),
+    "seniors": (
+        "senior center",
+        "meals on wheels",
+        "senior services nonprofit",
+    ),
+    "youth_education": (
+        "youth mentoring program",
+        "boys and girls club",
+        "literacy program",
+        "tutoring nonprofit",
+        "public library",
+        "after school program",
+    ),
+    "crisis": (
+        "crisis center",
+        "domestic violence shelter",
+        "addiction recovery center",
+        "community mental health nonprofit",
+    ),
+    "veterans": (
+        "veterans organization",
+        "veterans service center",
+    ),
+    "disability": (
+        "disability services nonprofit",
+        "special needs organization",
+    ),
+    "immigrant": (
+        "refugee resettlement agency",
+        "immigrant services nonprofit",
+    ),
+    "goods": (
+        "thrift store charity",
+        "donation center",
+        "goodwill",
+        "salvation army",
+    ),
+    "community": (
+        "community center",
+        "volunteer organization",
+        "nonprofit organization",
+        "mutual aid group",
+        "charity",
+    ),
+    "disaster": (
+        "red cross",
+        "disaster relief organization",
+    ),
+    "arts": (
+        "museum",
+        "community arts nonprofit",
+    ),
+}
+
+#: The default fan-out: the broadest one or two queries from every domain.
+#:
+#: This is a deliberate cost/coverage tradeoff. Every query is one billed
+#: Places request, so searching all of ``QUERY_PACKS`` costs roughly three
+#: times as much per map refresh. Start here; reach for ``packs=`` or
+#: ``queries=`` when a demo needs depth in one area.
 DEFAULT_QUERIES: tuple[str, ...] = (
     "food bank",
+    "soup kitchen",
     "homeless shelter",
     "animal shelter",
-    "soup kitchen",
-    "volunteer organization",
-    "community center",
-    "charity donation center",
+    "environmental nonprofit",
+    "community garden",
+    "free clinic",
     "senior center",
+    "youth mentoring program",
+    "literacy program",
+    "crisis center",
+    "veterans organization",
+    "disability services nonprofit",
+    "refugee resettlement agency",
     "thrift store charity",
-    "habitat for humanity",
+    "volunteer organization",
+    "nonprofit organization",
+    "community center",
 )
+
+
+def all_queries() -> tuple[str, ...]:
+    """Every query in every pack, deduped, order preserved."""
+    seen: dict[str, None] = {}
+    for pack in QUERY_PACKS.values():
+        for query in pack:
+            seen.setdefault(query, None)
+    return tuple(seen)
+
+
+def queries_for_packs(packs: Sequence[str]) -> tuple[str, ...]:
+    """Queries for the named domains. Unknown names raise, rather than
+    silently searching for nothing."""
+    unknown = [p for p in packs if p not in QUERY_PACKS]
+    if unknown:
+        raise ValueError(
+            f"Unknown query pack(s): {', '.join(unknown)}. "
+            f"Available: {', '.join(sorted(QUERY_PACKS))}"
+        )
+    seen: dict[str, None] = {}
+    for pack in packs:
+        for query in QUERY_PACKS[pack]:
+            seen.setdefault(query, None)
+    return tuple(seen)
+
 
 #: Places API type -> our canonical category. First match wins.
 _TYPE_TO_CATEGORY: tuple[tuple[str, str], ...] = (
@@ -57,46 +188,109 @@ _TYPE_TO_CATEGORY: tuple[tuple[str, str], ...] = (
 )
 
 #: Search-query keyword -> category. Ordered most-specific-first, because the
-#: first match wins -- "animal shelter" must be tested before bare "shelter".
+#: first match wins -- "animal shelter" must beat bare "shelter", and
+#: "domestic violence shelter" must beat both.
 _QUERY_TO_CATEGORY: tuple[tuple[str, str], ...] = (
+    # Animals first: "wildlife rehabilitation" contains "rehab", and
+    # "animal rescue" contains "rescue". Both would otherwise be captured
+    # by the crisis and housing entries below.
     ("animal shelter", "animal_shelter"),
     ("animal rescue", "animal_shelter"),
     ("humane society", "animal_shelter"),
+    ("wildlife", "animal_shelter"),
     ("spca", "animal_shelter"),
     ("animal", "animal_shelter"),
+    # Crisis work -- before the generic "shelter".
+    ("domestic violence", "crisis_support"),
+    ("crisis", "crisis_support"),
+    ("suicide prevention", "crisis_support"),
+    ("addiction recovery", "crisis_support"),
+    ("addiction", "crisis_support"),
+    ("drug rehab", "crisis_support"),
+    ("alcohol rehab", "crisis_support"),
+    ("substance abuse", "crisis_support"),
+    ("mental health", "crisis_support"),
+    ("womens shelter", "crisis_support"),
+    # Housing -- "rescue mission" must beat the "rescue" above it being
+    # animal-only, so it is spelled out here.
+    ("rescue mission", "homeless_shelter"),
+    ("homeless", "homeless_shelter"),
+    ("transitional housing", "homeless_shelter"),
+    ("habitat for humanity", "homeless_shelter"),
+    ("shelter", "homeless_shelter"),
+    # Food.
     ("food bank", "food_bank"),
     ("soup kitchen", "food_bank"),
     ("food pantry", "food_bank"),
+    ("community fridge", "food_bank"),
+    ("meals on wheels", "senior_care"),
+    ("meal delivery", "food_bank"),
     ("pantry", "food_bank"),
-    ("meals on wheels", "food_bank"),
-    ("homeless", "homeless_shelter"),
-    ("shelter", "homeless_shelter"),
-    ("rescue mission", "homeless_shelter"),
+    # Veterans, disability, immigrants -- before generic "services".
+    ("veteran", "veterans"),
+    ("vfw", "veterans"),
+    ("american legion", "veterans"),
+    ("disability", "disability_services"),
+    ("special needs", "disability_services"),
+    ("refugee", "refugee_services"),
+    ("immigrant", "refugee_services"),
+    ("asylum", "refugee_services"),
+    # Seniors.
     ("senior", "senior_care"),
     ("elder", "senior_care"),
     ("hospice", "senior_care"),
+    ("nursing home", "senior_care"),
+    # Health.
     ("free clinic", "healthcare"),
-    ("clinic", "healthcare"),
+    ("blood donation", "healthcare"),
     ("blood drive", "healthcare"),
+    ("clinic", "healthcare"),
     ("health", "healthcare"),
-    ("literacy", "education"),
-    ("tutor", "education"),
-    ("library", "education"),
+    # Youth and education.
+    ("youth mentoring", "youth_program"),
+    ("boys and girls club", "youth_program"),
+    ("boys & girls club", "youth_program"),
+    ("after school", "youth_program"),
     ("youth", "youth_program"),
     ("mentor", "youth_program"),
-    ("boys & girls club", "youth_program"),
+    ("literacy", "education"),
+    ("tutoring", "education"),
+    ("tutor", "education"),
+    ("library", "education"),
+    ("school", "education"),
+    # Environment.
+    ("community garden", "environmental"),
+    ("conservation", "environmental"),
+    ("environmental", "environmental"),
+    ("park conservancy", "environmental"),
+    ("nature center", "environmental"),
+    ("watershed", "environmental"),
+    ("park", "environmental"),
     ("cleanup", "community_cleanup"),
     ("clean-up", "community_cleanup"),
-    ("habitat for humanity", "community_cleanup"),
-    ("conservation", "environmental"),
-    ("environment", "environmental"),
-    ("park", "environmental"),
+    # Disaster.
+    ("red cross", "disaster_relief"),
+    ("disaster relief", "disaster_relief"),
+    ("disaster", "disaster_relief"),
+    # Goods.
     ("thrift", "thrift_donation"),
-    ("donation center", "thrift_donation"),
     ("goodwill", "thrift_donation"),
+    ("salvation army", "thrift_donation"),
+    ("donation center", "thrift_donation"),
+    # Arts and culture.
+    ("museum", "arts_culture"),
+    ("arts nonprofit", "arts_culture"),
+    ("community arts", "arts_culture"),
+    ("historical society", "arts_culture"),
+    # Faith.
+    ("church", "religious"),
+    ("mosque", "religious"),
+    ("synagogue", "religious"),
+    ("temple", "religious"),
+    # Generic catch-alls -- last, so anything specific wins first.
+    ("mutual aid", "community_center"),
     ("community center", "community_center"),
 )
-
 
 _TRUST_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -245,6 +439,8 @@ def find_opportunities(
     radius_km: float = 5.0,
     *,
     queries: Sequence[str] | None = None,
+    packs: Sequence[str] | None = None,
+    max_queries: int = 24,
     max_results: int = 20,
     min_legitimacy: float = 0.4,
     verify: bool = False,
@@ -258,7 +454,13 @@ def find_opportunities(
     Args:
         lat, lng: Center of the search.
         radius_km: Search radius; clamped to Google's 50km ceiling upstream.
-        queries: Override the default nonprofit search terms.
+        queries: Explicit search terms, overriding everything else.
+        packs: Names from ``QUERY_PACKS`` to search instead of the default
+            fan-out, e.g. ``["food", "animals"]``. Pass ``["all"]`` for every
+            philanthropic domain -- broadest coverage, highest cost.
+        max_queries: Hard cap on how many Places requests one call may make.
+            Each query is separately billed, so this is the cost guard; raise
+            it deliberately rather than by accident.
         max_results: Cap on returned opportunities.
         min_legitimacy: Drop anything scoring below this. Keeps permanently
             closed and obviously-not-a-nonprofit results off the map.
@@ -278,7 +480,21 @@ def find_opportunities(
         A list of Opportunity dicts, highest legitimacy first.
     """
     places = places or get_places_provider()
-    search_terms = tuple(queries) if queries else DEFAULT_QUERIES
+
+    if queries:
+        search_terms = tuple(queries)
+    elif packs:
+        search_terms = all_queries() if "all" in packs else queries_for_packs(packs)
+    else:
+        search_terms = DEFAULT_QUERIES
+
+    if len(search_terms) > max_queries:
+        log.info(
+            "Trimming %d queries to max_queries=%d (each one is a billed Places request)",
+            len(search_terms),
+            max_queries,
+        )
+        search_terms = search_terms[:max_queries]
 
     try:
         raw_places = places.search_nearby(lat, lng, radius_km, search_terms, max_results * 2)

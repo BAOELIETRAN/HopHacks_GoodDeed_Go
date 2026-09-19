@@ -15,17 +15,25 @@ from .models import Tier
 # Base points per visit, roughly ordered by how much a shift actually costs the
 # volunteer. Keys are the canonical category strings used in Opportunity.category.
 CATEGORY_BASE_POINTS: dict[str, int] = {
+    # Highest: emotionally demanding, training-gated, or acute-need work.
+    "crisis_support": 35,
     "homeless_shelter": 35,
+    "disaster_relief": 30,
     "food_bank": 30,
     "healthcare": 30,
     "senior_care": 30,
-    "disaster_relief": 30,
+    "disability_services": 30,
+    "refugee_services": 30,
+    "veterans": 30,
+    # Mid: sustained but lower-intensity commitments.
     "animal_shelter": 25,
     "education": 25,
     "environmental": 25,
+    "youth_program": 20,
     "community_cleanup": 20,
     "community_center": 20,
-    "youth_program": 20,
+    "arts_culture": 20,
+    # Lowest: valuable, but usually a short drop-in.
     "thrift_donation": 15,
     "religious": 15,
     "other": 20,
@@ -36,7 +44,17 @@ DEFAULT_CATEGORY = "other"
 # Categories whose meaningful contribution is a recurring commitment rather
 # than a one-off drop-in get monthly quests.
 MONTHLY_CATEGORIES = frozenset(
-    {"homeless_shelter", "healthcare", "senior_care", "education", "youth_program"}
+    {
+        "homeless_shelter",
+        "healthcare",
+        "senior_care",
+        "education",
+        "youth_program",
+        "crisis_support",
+        "disability_services",
+        "refugee_services",
+        "veterans",
+    }
 )
 
 # --- Economy knobs ----------------------------------------------------------
