@@ -46,6 +46,14 @@ class BadgeOut(BaseModel):
     label: str
 
 
+class FrameOut(BaseModel):
+    code: str
+    label: str
+    at: int
+    ring: str
+    unlocked: bool
+
+
 class UserOut(BaseModel):
     id: str
     name: str
@@ -59,6 +67,8 @@ class UserOut(BaseModel):
     current_streak: int
     longest_streak: int
     badges: list[BadgeOut]
+    frames: list[FrameOut] = []
+    frame: Optional[str] = None
 
 
 class AuthResponse(BaseModel):
@@ -212,6 +222,56 @@ class SubmissionOut(BaseModel):
     is_personal_best: bool
     verified_presence: bool = False
     deed_type: str = "volunteer"
+
+
+# --- activity feed, reactions, comments -----------------------------------
+
+class CommentOut(BaseModel):
+    id: str
+    user_id: str
+    user_name: str
+    text: str
+    created_at: str
+    is_mine: bool
+
+
+class ReactionSummary(BaseModel):
+    emoji: str
+    count: int
+    mine: bool          # did the requester leave this one
+
+
+class FeedItem(BaseModel):
+    """One scored deed in the friends feed.
+
+    Deliberately omits photo_url: proof photos can show faces and locations,
+    and the person logging a deed did not consent to broadcasting the image
+    to their whole group. The deed type, org and rationale carry the story.
+    """
+
+    submission_id: str
+    user_id: str
+    user_name: str
+    user_avatar: Optional[str]
+    user_tier: str
+    deed_type: str
+    org_name: str
+    description: str
+    points: int
+    verified_presence: bool
+    created_at: str
+    is_mine: bool
+    reactions: list[ReactionSummary]
+    comments: list[CommentOut]
+    comment_count: int
+
+
+class ReactIn(BaseModel):
+    emoji: str = Field(min_length=1, max_length=8)
+
+
+class CommentIn(BaseModel):
+    text: str = Field(min_length=1, max_length=280)
 
 
 # --- leaderboard ------------------------------------------------------

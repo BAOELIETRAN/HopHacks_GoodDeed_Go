@@ -114,6 +114,13 @@ export const api = {
   quests: (lat, lng, radius) =>
     withFallback(() => request(`/quests?${qs({ lat, lng, radius })}`), mock.MOCK_QUESTS),
 
+  // --- friends activity feed ----------------------------------------------
+  feed: (since) =>
+    withFallback(() => request(since ? `/feed?since=${encodeURIComponent(since)}` : "/feed"), []),
+  react: (id, emoji) => request(`/feed/${id}/react`, { method: "POST", body: { emoji } }),
+  comment: (id, text) => request(`/feed/${id}/comment`, { method: "POST", body: { text } }),
+  deleteComment: (id) => request(`/feed/comments/${id}`, { method: "DELETE" }),
+
   // --- everyday deeds (tap to complete) -----------------------------------
   todaysTasks: () =>
     withFallback(() => request("/tasks/today"), {

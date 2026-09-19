@@ -4,6 +4,7 @@ import { api, ApiError, clearSession, state } from "../api.js";
 import { esc, h, statusbar, tierBadge, toast } from "../ui.js";
 import { go } from "../router.js";
 import { companionSvg, nextStage, stageFor, stageProgress, STAGES } from "../companion.js";
+import { tierBar } from "../celebrate.js";
 
 const ALL_BADGES = [
   { code: "first_shift", label: "First Shift", emoji: "🥕" },
@@ -15,18 +16,14 @@ export async function renderProfile(root) {
   const user = (await api.me()) || state.user || {};
   const earned = new Set((user.badges || []).map((b) => b.code));
 
-  // Progress toward the next tier, derived from what the backend reports
-  // rather than hardcoded thresholds, so tuning the economy needs no UI change.
-  const toNext = user.points_to_next_tier;
-  const pct = toNext == null ? 100
-    : Math.max(4, Math.round((user.tier_points / (user.tier_points + toNext)) * 100));
 
   root.innerHTML = `
     ${statusbar()}
     <div class="appbar"><span></span><h3>Profile</h3><button data-out aria-label="Sign out">⚙</button></div>
     <div class="pad stack">
       <div class="row">
-        <span class="avatar" style="width:58px;height:58px;font-size:20px;overflow:hidden">
+        <span class="avatar framed" style="width:58px;height:58px;font-size:20px;overflow:hidden;
+              --frame-ring:${esc((user.frames || []).filter((f) => f.unlocked).slice(-1)[0]?.ring || "rgba(255,255,255,.28)")}">
           ${user.avatar_url
             ? `<img src="${esc(user.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover">`
             : esc((user.name || "?").slice(0, 1).toUpperCase())}
@@ -43,20 +40,7 @@ export async function renderProfile(root) {
         ${tierBadge(user.tier || "Bronze")}
       </div>
 
-      <div class="panel panel-dark">
-        <div class="row-between">
-          <strong style="letter-spacing:.06em;text-transform:uppercase;color:var(--yellow-deep)">
-            ${esc(user.tier || "Bronze")} helper
-          </strong>
-          <span style="font-size:13px;opacity:.9">
-            ${toNext == null ? "Top tier reached" : `${toNext} to next tier`}
-          </span>
-        </div>
-        <div class="bar" style="margin-top:12px"><i style="width:${pct}%"></i></div>
-        <div class="row-between tiny" style="margin-top:8px">
-          <span>Bronze 0</span><span>Silver 100</span><span>Gold 500</span>
-        </div>
-      </div>
+      <div class="panel panel-dark" id="tier-slot"></div>
 
       <div class="section-title"><h3>Your companion</h3></div>
       <div class="card companion-card">
@@ -80,6 +64,21 @@ export async function renderProfile(root) {
                  title="${esc(st.name)} at ${st.at} pts">
               <span>${(user.tier_points ?? 0) >= st.at ? "●" : "○"}</span>
               <em>${esc(st.name)}</em>
+            </div>`).join("")}
+        </div>
+      </div>
+
+      <div class="section-title"><h3>Profile frames</h3></div>
+      <div class="card">
+        <p class="tiny" style="margin-bottom:12px">Unlocked by total points. Cosmetic only.</p>
+        <div class="frame-grid">
+          ${(user.frames || []).map((f) => `
+            <div class="frame-tile ${f.unlocked ? "unlocked" : "locked"}">
+              <span class="frame-ring" style="--frame-ring:${esc(f.ring)}">
+                ${f.unlocked ? "✓" : "🔒"}
+              </span>
+              <em>${esc(f.label)}</em>
+              <span class="tiny">${f.at === 0 ? "default" : f.at + " pts"}</span>
             </div>`).join("")}
         </div>
       </div>

@@ -7,6 +7,7 @@ import { renderMap, teardownMap } from "./screens/map.js";
 import { renderQuest, renderResult, renderSubmit } from "./screens/submit.js";
 import { renderActive, teardownActive } from "./screens/active.js";
 import { renderToday } from "./screens/today.js";
+import { renderFeed } from "./screens/feed.js";
 import { renderQuests } from "./screens/quests.js";
 import { renderLeaderboard } from "./screens/leaderboard.js";
 import { renderCommunity, renderProof, renderReportForm } from "./screens/community.js";
@@ -22,6 +23,7 @@ defineRoute("quest",       { render: renderQuest,      auth: true });
 defineRoute("submit",      { render: renderSubmit,     auth: true });
 defineRoute("result",      { render: renderResult,     auth: true });
 defineRoute("active",      { render: renderActive,     auth: true });
+defineRoute("feed",        { render: renderFeed,       nav: true,  auth: true });
 defineRoute("community",   { render: renderCommunity,  nav: true,  auth: true });
 defineRoute("report",      { render: renderReportForm, auth: true });
 defineRoute("proof",       { render: renderProof,      auth: true });
@@ -31,8 +33,8 @@ defineRoute("profile",     { render: renderProfile,    nav: true,  auth: true })
 const NAV = [
   { route: "today",       icon: "☀", label: "Today" },
   { route: "map",         icon: "⌖", label: "Map" },
+  { route: "feed",        icon: "✷", label: "Activity" },
   { route: "community",   icon: "♥", label: "Community" },
-  { route: "leaderboard", icon: "♛", label: "Ranks" },
   { route: "profile",     icon: "●", label: "Profile" },
 ];
 

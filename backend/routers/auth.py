@@ -7,7 +7,7 @@ from .. import db_models as m
 from ..agent_client import points_to_next_tier
 from ..database import get_db
 from ..deps import get_current_user
-from ..gamification import compute_badges
+from ..gamification import compute_badges, current_frame, frames_for
 from ..config import GOOGLE_CLIENT_ID
 from ..google_auth import GoogleAuthError, is_enabled, verify_credential
 from ..schemas import (
@@ -46,6 +46,8 @@ def _user_out(db: DbSession, user: m.User) -> UserOut:
         current_streak=user.current_streak,
         longest_streak=user.longest_streak,
         badges=compute_badges(user, verified_count),
+        frames=frames_for(user.tier_points),
+        frame=current_frame(user.tier_points)["code"],
     )
 
 

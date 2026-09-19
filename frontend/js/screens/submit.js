@@ -8,6 +8,7 @@ import {
 } from "../ui.js";
 import { go } from "../router.js";
 import { celebrate, companionSvg, stageFor } from "../companion.js";
+import { confettiBurst, tierBar } from "../celebrate.js";
 
 
 /** Straight-line metres between a fix and a quest. Mirrors the server's
@@ -171,19 +172,22 @@ export async function renderSubmit(root, { quest, checkin, deedType } = {}) {
       </div>
 
       ${measured ? "" : `
-        <div>
-          <h3>What kind of good deed?</h3>
-          <p class="muted" style="margin-top:6px">Each kind is checked differently.</p>
+        <div id="deed-choose">
+          <div class="form-section">
+            <h3>What kind of good deed?</h3>
+            <p class="muted">Each kind is checked differently.</p>
+          </div>
+          <div class="deed-grid" id="deed-grid">
+            ${types.map((t) => `
+              <button type="button" class="deed-tile" data-deed="${esc(t.key)}"
+                      aria-selected="${t.key === spec.key}">
+                <span class="deed-ico">${t.icon}</span>
+                <span class="deed-label">${esc(t.label)}</span>
+                <span class="deed-blurb">${esc(t.blurb)}</span>
+              </button>`).join("")}
+          </div>
         </div>
-        <div class="deed-grid" id="deed-grid">
-          ${types.map((t) => `
-            <button type="button" class="deed-tile" data-deed="${esc(t.key)}"
-                    aria-selected="${t.key === spec.key}">
-              <span class="deed-ico">${t.icon}</span>
-              <span class="deed-label">${esc(t.label)}</span>
-              <span class="deed-blurb">${esc(t.blurb)}</span>
-            </button>`).join("")}
-        </div>`}
+        <div id="deed-chosen" hidden></div>`}
 
       <div id="deed-fields"></div>
 
@@ -234,50 +238,45 @@ export async function renderSubmit(root, { quest, checkin, deedType } = {}) {
     const wantsOrg = spec.key !== "kindness" && spec.key !== "advocacy";
 
     fieldsEl.innerHTML = `
-      <div class="panel panel-mint" style="margin-bottom:var(--s3)">
-        <strong style="font-size:14px">${spec.icon} ${esc(spec.label)}</strong>
-        <p class="tiny" style="margin-top:4px">
-          ${esc(spec.evidence)} · up to ${spec.max_points} pts
-        </p>
+      <div class="form-section">
+        <label class="field-label" for="photo">${esc(spec.evidence)}</label>
+        <label class="dropzone" id="dropzone">
+          <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" id="photo">
+          <div class="guide" id="guide">
+            <span class="guide-icon">${spec.icon}</span>
+            ${needsPhoto ? "Tap to add" : "Tap to add — optional for this one"}
+            <span class="guide-hint">JPEG or PNG</span>
+          </div>
+        </label>
       </div>
 
-      <label class="dropzone" id="dropzone">
-        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" id="photo">
-        <div class="guide" id="guide">
-          ${esc(spec.evidence)}
-          <span style="display:block;font-weight:600;opacity:.75;margin-top:6px">
-            ${needsPhoto ? "Required · JPEG or PNG" : "Optional for this kind of deed"}
-          </span>
-        </div>
-      </label>
-
       ${wantsOrg ? `
-        <label class="field" style="margin-top:var(--s3)">
-          <span>Organization or cause</span>
+        <div class="form-section">
+          <label class="field-label" for="org">Organization or cause</label>
           <input type="text" id="org" value="${esc(orgName)}" placeholder="e.g. Maryland Food Bank">
-        </label>` : ""}
+        </div>` : ""}
 
-      <label class="field" style="margin-top:var(--s3)">
-        <span>${spec.key === "kindness" ? "What did you do?" : "Tell us about it"}</span>
+      <div class="form-section">
+        <label class="field-label" for="desc">
+          ${spec.key === "kindness" ? "What did you do?" : "Tell us about it"}
+        </label>
         <textarea id="desc" placeholder="Be specific — what you did, who for, what it looked like."></textarea>
-      </label>
+      </div>
 
       ${measured ? `
-        <div class="panel panel-mint">
-          <strong style="font-size:14px">✓ ${measured.elapsed_minutes} minutes, verified</strong>
-          <p class="tiny" style="margin-top:3px">
-            Timed on site. Nothing to type in, and worth more than a self-reported shift.
-          </p>
+        <div class="form-section">
+          <div class="verified-time">
+            <strong>✓ ${measured.elapsed_minutes} minutes, verified</strong>
+            <span>Timed on site — nothing to type in.</span>
+          </div>
           <input type="hidden" id="mins" value="${measured.elapsed_minutes}">
         </div>`
         : needsTime ? `
-        <label class="field">
-          <span>Time spent (minutes)</span>
+        <div class="form-section">
+          <label class="field-label" for="mins">Time spent (minutes)</label>
           <input type="number" id="mins" min="0" max="600" step="5" value="45">
-          <p class="tiny" style="margin-top:6px">
-            Self-reported. Starting from a quest times it for you and scores higher.
-          </p>
-        </label>`
+          <p class="field-hint">Starting from a quest times it for you, and scores higher.</p>
+        </div>`
         : `<input type="hidden" id="mins" value="0">`}
     `;
 
@@ -293,12 +292,39 @@ export async function renderSubmit(root, { quest, checkin, deedType } = {}) {
     });
   }
 
+  const chooseEl = root.querySelector("#deed-choose");
+  const chosenEl = root.querySelector("#deed-chosen");
+
+  /** Collapse the eight-tile grid to a single confirmation row.
+   *  Leaving the grid open pushed the actual form below the fold, and
+   *  repeating the choice as a second full card directly under an
+   *  identical-looking tile read as a rendering bug. */
+  function showChosen() {
+    if (!chooseEl || !chosenEl) return;
+    chooseEl.hidden = true;
+    chosenEl.hidden = false;
+    chosenEl.innerHTML = `
+      <div class="chosen-row">
+        <span class="chosen-ico">${spec.icon}</span>
+        <span class="grow">
+          <strong>${esc(spec.label)}</strong>
+          <em>up to ${spec.max_points} pts</em>
+        </span>
+        <button type="button" class="btn-link" data-change>Change</button>
+      </div>`;
+    chosenEl.querySelector("[data-change]").onclick = () => {
+      chooseEl.hidden = false;
+      chosenEl.hidden = true;
+    };
+  }
+
   root.querySelectorAll("[data-deed]").forEach((tile) => {
     tile.onclick = () => {
       spec = types.find((t) => t.key === tile.dataset.deed) || spec;
       root.querySelectorAll("[data-deed]").forEach((t) =>
         t.setAttribute("aria-selected", String(t.dataset.deed === spec.key)));
       errEl.hidden = true;
+      showChosen();
       renderFields();
     };
   });
@@ -401,10 +427,7 @@ export function renderResult(root, { result }) {
           ? `<div class="panel panel-yellow">🔥 ${result.current_streak}-day streak</div>`
           : ""}
 
-      <div class="panel panel-mint row-between">
-        <span style="font-weight:800">Your tier</span>
-        <span>${esc(result.user_tier || "Bronze")} · ${result.user_tier_points ?? 0} pts</span>
-      </div>
+      <div class="card" style="text-align:left" id="tier-slot"></div>
 
       ${awarded ? "" : `<p class="tiny">Nothing was deducted. Retake the photo at the site and submit again.</p>`}
 
@@ -412,10 +435,19 @@ export function renderResult(root, { result }) {
       <button class="btn btn-ghost" data-map>Back to map</button>
     </div>`;
 
+  // XP bar animates up from the pre-submission total, so the points just
+  // earned are visible as movement rather than a number that was already there.
+  const earned = result.tier_points ?? 0;
+  const after = result.user_tier_points ?? 0;
+  root.querySelector("#tier-slot").replaceChildren(
+    tierBar(after, { animateFrom: Math.max(0, after - earned) }),
+  );
+
   if (awarded) {
-    const before = stageFor((result.user_tier_points ?? 0) - (result.tier_points ?? 0)).key;
-    const evolved = before !== stageFor(result.user_tier_points ?? 0).key;
+    const beforeStage = stageFor(after - earned).key;
+    const evolved = beforeStage !== stageFor(after).key;
     celebrate(root.querySelector("#result-companion .companion"), { evolved });
+    confettiBurst({ count: evolved ? 130 : 90 });
   }
 
   root.querySelector("[data-again]").onclick = () => go(awarded ? "today" : "submit", {});

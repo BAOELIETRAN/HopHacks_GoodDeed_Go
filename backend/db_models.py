@@ -198,6 +198,49 @@ class MicroDeedDone(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class Reaction(Base):
+    """A friend's emoji response to a logged deed.
+
+    One row per (submission, user, emoji), so a person can leave more than
+    one kind of reaction but cannot stack the same one -- the unique
+    constraint does that rather than a count column, which would need
+    reconciling every time someone un-reacts.
+
+    Allowed emoji are fixed server-side (see routers/social.py). An open
+    text field here would be an unmoderated message channel with extra
+    steps.
+    """
+
+    __tablename__ = "reactions"
+    __table_args__ = (
+        UniqueConstraint("submission_id", "user_id", "emoji", name="uq_reaction"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    submission_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("submissions.id"), index=True
+    )
+    user_id: Mapped[str] = mapped_column(String(32), ForeignKey("users.id"), index=True)
+    emoji: Mapped[str] = mapped_column(String(8))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class Comment(Base):
+    """A short note on someone's logged deed."""
+
+    __tablename__ = "comments"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    submission_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("submissions.id"), index=True
+    )
+    user_id: Mapped[str] = mapped_column(String(32), ForeignKey("users.id"), index=True)
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, index=True
+    )
+
+
 class Opportunity(Base):
     """Cached agent.find_opportunities() results for a (lat, lng, radius) bucket."""
 

@@ -322,7 +322,11 @@ input[type="text"], input[type="email"], input[type="password"], input[type="num
   -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.18);
 }
-input::placeholder, textarea::placeholder { color: rgba(255,255,255,.38); }
+/* Was .38 white, which measures ~2.6:1 on the glass -- far below the 4.5:1
+   floor. These placeholders carry real guidance ("e.g. Maryland Food
+   Bank"), so they have to be readable. .70 measures 4.77:1 and still reads
+   as a hint rather than entered text. */
+input::placeholder, textarea::placeholder { color: rgba(255,255,255,.70); }
 input:focus, textarea:focus, select:focus {
   outline: none; border-color: var(--green);
   box-shadow: 0 0 0 3px rgba(92, 203, 125, .22), inset 0 1px 0 rgba(255,255,255,.18);
@@ -499,6 +503,141 @@ textarea { resize: vertical; min-height: 92px; line-height: 1.5; }
   border-bottom: 1px solid rgba(255,255,255,.10);
 }
 .list-row:last-child { border-bottom: 0; }
+
+/* ---------- Submission form ----------
+   One vertical rhythm for every section, and one shape language: inputs,
+   textarea, dropzone and buttons all share the same radius, border and
+   focus treatment so the form reads as one system. */
+.form-section { margin-bottom: var(--s5); }
+.form-section:last-child { margin-bottom: 0; }
+
+.field-label {
+  display: block; font-weight: 800; font-size: 14px;
+  margin-bottom: 8px; color: var(--ink);
+}
+.field-hint { font-size: 12px; color: var(--ink-faint); margin-top: 7px; line-height: 1.45; }
+
+/* Same radius and border as the inputs, so the dropzone belongs to the set
+   rather than looking like a pasted-in widget. */
+.dropzone {
+  border-radius: var(--r-md);
+  border: 1px solid var(--glass-border);
+  min-height: 190px;
+  padding: var(--s4);
+}
+.dropzone .guide {
+  border: 1.5px dashed rgba(255,255,255,.34);
+  border-radius: var(--r-sm);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; height: 100%; min-height: 150px;
+  font-size: 14px; font-weight: 800; color: var(--ink);
+}
+.guide-icon { font-size: 30px; line-height: 1; }
+/* .70 white on the dark scrim measures ~5.9:1 -- placeholder text people
+   are expected to read, not decoration. */
+.guide-hint { font-weight: 600; font-size: 12px; color: rgba(255,255,255,.70); }
+
+/* The collapsed confirmation. Deliberately a row, not a card: at card size
+   it was indistinguishable from the grid tile it replaced. */
+.chosen-row {
+  display: flex; align-items: center; gap: var(--s3);
+  background: linear-gradient(180deg, rgba(92,203,125,.22) 0%, rgba(92,203,125,.10) 100%);
+  border: 1px solid rgba(92,203,125,.45);
+  border-radius: var(--r-md); padding: 11px var(--s4); margin-bottom: var(--s5);
+}
+.chosen-ico { font-size: 21px; line-height: 1; }
+.chosen-row strong { display: block; font-size: 14px; }
+.chosen-row em { font-style: normal; font-size: 11.5px; color: var(--ink-soft); }
+.btn-link {
+  background: none; border: 0; cursor: pointer; font-family: inherit;
+  font-weight: 800; font-size: 13px; color: var(--green); padding: 6px 2px;
+}
+
+.verified-time {
+  background: linear-gradient(180deg, rgba(92,203,125,.22) 0%, rgba(92,203,125,.10) 100%);
+  border: 1px solid rgba(92,203,125,.45);
+  border-radius: var(--r-md); padding: 13px var(--s4);
+}
+.verified-time strong { display: block; font-size: 14px; }
+.verified-time span { font-size: 12px; color: var(--ink-soft); }
+
+/* ---------- Activity feed ---------- */
+.feed-item + .feed-item { margin-top: var(--s3); }
+.feed-desc {
+  font-size: 14.5px; line-height: 1.5; color: var(--ink);
+  margin-top: 11px; padding-left: 2px;
+}
+
+.reaction-row { display: flex; gap: 7px; margin-top: 13px; flex-wrap: wrap; }
+.react-btn {
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  font-family: inherit; font-size: 15px; line-height: 1;
+  background: var(--glass-weak); border: 1px solid var(--glass-border);
+  border-radius: var(--r-pill); padding: 7px 12px;
+  transition: transform .12s ease, background .15s, border-color .15s;
+}
+.react-btn:active { transform: scale(.9); }
+.react-btn em {
+  font-style: normal; font-size: 12px; font-weight: 800; color: var(--ink-soft);
+}
+.react-btn.mine {
+  background: linear-gradient(180deg, rgba(92,203,125,.30) 0%, rgba(92,203,125,.14) 100%);
+  border-color: rgba(92,203,125,.55);
+}
+.react-btn.mine em { color: var(--ink); }
+
+.feed-comments { margin-top: 12px; }
+.feed-comment {
+  font-size: 13.5px; line-height: 1.45; color: var(--ink-soft);
+  padding: 5px 0; border-top: 1px solid rgba(255,255,255,.08);
+}
+.feed-comment strong { color: var(--ink); margin-right: 5px; }
+
+.comment-form { display: flex; gap: 8px; margin-top: 11px; }
+.comment-form input { flex: 1; padding: 10px 14px; font-size: 14px; }
+.comment-form button { flex: 0 0 auto; }
+
+/* ---------- Confetti + checkmark ---------- */
+.confetti-canvas {
+  position: absolute; inset: 0; pointer-events: none; z-index: 1500;
+}
+
+.check-burst .cb-ring {
+  stroke-dasharray: 264; stroke-dashoffset: 264;
+  animation: cb-ring .5s ease-out forwards;
+}
+.check-burst .cb-tick {
+  stroke-dasharray: 80; stroke-dashoffset: 80;
+  animation: cb-tick .4s .35s ease-out forwards;
+}
+@keyframes cb-ring { to { stroke-dashoffset: 0; } }
+@keyframes cb-tick { to { stroke-dashoffset: 0; } }
+
+/* ---------- Tier / XP bar ---------- */
+.tier-bar .bar { height: 12px; }
+.tier-bar .bar > i { transition: width .9s cubic-bezier(.2, .9, .3, 1); }
+
+/* ---------- Profile frames ---------- */
+.avatar.framed {
+  box-shadow: 0 0 0 2.5px var(--frame-ring, rgba(255,255,255,.28)),
+              0 0 16px -2px var(--frame-ring, transparent);
+}
+.frame-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.frame-tile { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.frame-tile.locked { opacity: .42; }
+.frame-ring {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 15px;
+  background: var(--glass-weak);
+  box-shadow: 0 0 0 2.5px var(--frame-ring), 0 0 14px -3px var(--frame-ring);
+}
+.frame-tile em { font-style: normal; font-weight: 800; font-size: 11.5px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tier-bar .bar > i, .check-burst .cb-ring, .check-burst .cb-tick {
+    transition: none !important; animation: none !important; stroke-dashoffset: 0 !important;
+  }
+}
 
 /* ---------- Companion ----------
    Idle motion is slow and small on purpose: a creature that jitters
