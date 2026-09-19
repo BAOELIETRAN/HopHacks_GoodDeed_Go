@@ -70,9 +70,9 @@ async function mountGoogleButton(mount) {
       text: "continue_with", width: 300, logo_alignment: "center",
     });
     mount.appendChild(h(`<div class="row" style="margin:14px 0 2px">
-        <hr style="flex:1;border:0;border-top:1px solid var(--cream-deep)">
+        <hr style="flex:1;border:0;border-top:1px solid var(--glass-border)">
         <span class="tiny">or</span>
-        <hr style="flex:1;border:0;border-top:1px solid var(--cream-deep)">
+        <hr style="flex:1;border:0;border-top:1px solid var(--glass-border)">
       </div>`));
   } catch (err) {
     console.warn("[gdg] Google button failed to render:", err);
@@ -86,9 +86,12 @@ export function renderWelcome(root) {
       <div class="row center" style="justify-content:center;gap:8px">
         <span style="font-size:20px">✦</span><h3>GoodDeed Go</h3>
       </div>
-      <div class="panel panel-blue" style="height:230px;display:grid;place-items:center;position:relative">
-        <div style="position:absolute;top:22px;right:34px;width:52px;height:52px;border-radius:50%;background:var(--yellow-deep)"></div>
-        <div style="position:absolute;top:34px;left:28px;font-size:22px">✦</div>
+      <div class="panel panel-blue" style="height:230px;display:grid;place-items:center;position:relative;overflow:hidden">
+        <div style="position:absolute;top:26px;right:36px;width:54px;height:54px;border-radius:50%;
+                    background:radial-gradient(circle at 34% 30%, #ffe08a, #e8bd5c);
+                    box-shadow:0 0 34px rgba(232,189,92,.55)"></div>
+        <div style="position:absolute;top:36px;left:30px;font-size:20px;opacity:.8">✦</div>
+        <div style="position:absolute;bottom:28px;left:52px;font-size:13px;opacity:.55">✦</div>
         <div class="mascot"><div class="eyes"><i class="eye"></i><i class="eye"></i></div></div>
       </div>
       <h1>Small deeds.<br>Real-world wins.</h1>

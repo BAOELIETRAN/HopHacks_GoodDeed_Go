@@ -28,7 +28,9 @@ export async function renderLeaderboard(root) {
         <button data-v="weekly" aria-selected="${period === "weekly"}">Weekly</button>
       </div>
     </div>
-    <div class="pad" id="board" style="padding-top:4px">${spinner()}</div>
+    <div class="pad" style="padding-top:4px">
+      <div class="card" style="padding:var(--s4)" id="board">${spinner()}</div>
+    </div>
     <p class="tiny center" style="padding:0 20px 20px">
       Only verified completions count. Exact locations stay private.
     </p>`;

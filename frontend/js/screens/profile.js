@@ -25,7 +25,7 @@ export async function renderProfile(root) {
     <div class="appbar"><span></span><h3>Profile</h3><button data-out aria-label="Sign out">⚙</button></div>
     <div class="pad stack">
       <div class="row">
-        <span class="avatar" style="width:58px;height:58px;font-size:19px;background:#c4bdf5;overflow:hidden">
+        <span class="avatar" style="width:58px;height:58px;font-size:20px;overflow:hidden">
           ${user.avatar_url
             ? `<img src="${esc(user.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover">`
             : esc((user.name || "?").slice(0, 1).toUpperCase())}
@@ -52,7 +52,7 @@ export async function renderProfile(root) {
           </span>
         </div>
         <div class="bar" style="margin-top:12px"><i style="width:${pct}%"></i></div>
-        <div class="row-between tiny" style="margin-top:8px;color:rgba(255,255,255,.75)">
+        <div class="row-between tiny" style="margin-top:8px">
           <span>Bronze 0</span><span>Silver 100</span><span>Gold 500</span>
         </div>
       </div>

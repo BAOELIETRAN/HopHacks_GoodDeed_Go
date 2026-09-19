@@ -95,14 +95,14 @@ function renderHighlight(container, quests) {
   const q = quests[0];
   if (!q) {
     container.innerHTML = `
-      <div class="card center">
+      <div class="card center" style="background:var(--glass-dark)">
         <p class="muted">No quests found nearby.</p>
         <p class="tiny" style="margin-top:6px">Try again from a different location.</p>
       </div>`;
     return;
   }
   const card = h(`
-    <div class="card tappable" style="cursor:pointer">
+    <div class="card tappable" style="cursor:pointer;background:var(--glass-dark)">
       <div class="row">
         <div class="thumb">${icon(q.category)}</div>
         <div class="grow">
