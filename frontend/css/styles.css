@@ -204,6 +204,12 @@ textarea { resize: vertical; min-height: 92px; line-height: 1.5; }
 
 /* ---------- Map ---------- */
 #map { flex: 1; min-height: 340px; background: var(--mint); z-index: 0; }
+/* OSM requires attribution; keep it legible but out of the way. */
+.leaflet-control-attribution {
+  font-size: 9px !important; background: rgba(255,255,255,.72) !important;
+  padding: 1px 5px !important; border-radius: var(--r-pill) 0 0 0;
+}
+.leaflet-control-attribution a { color: var(--ink-soft); }
 .leaflet-container { font-family: inherit; background: var(--mint) !important; }
 .map-pin {
   background: var(--green); color: #fff; font-weight: 800; font-size: 13px;

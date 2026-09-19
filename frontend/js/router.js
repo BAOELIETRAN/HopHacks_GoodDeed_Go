@@ -53,6 +53,13 @@ async function dispatchTo(name, route) {
   try {
     await route.render(root, params);
   } catch (err) {
+    // An expired or revoked token should land on sign-in, not an error
+    // screen. api.js has already cleared the session by this point.
+    if (err?.status === 401) {
+      current = null;
+      location.hash = "welcome";
+      return;
+    }
     console.error("[gdg] screen failed:", err);
     root.innerHTML = `<div class="empty"><div class="big">😵</div>
       <h3>Something broke on this screen</h3>

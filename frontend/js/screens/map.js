@@ -50,10 +50,15 @@ function initLeaflet(loc) {
   if (!el || !window.L) return;
   if (mapInstance) { mapInstance.remove(); mapInstance = null; }
 
-  mapInstance = L.map(el, { zoomControl: false, attributionControl: false })
-    .setView([loc.lat, loc.lng], 14);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+  mapInstance = L.map(el, { zoomControl: false }).setView([loc.lat, loc.lng], 14);
+
+  // OpenStreetMap's standard tiles: genuinely keyless. Carto, Stadia and
+  // Mapbox all now require an API key and watermark or block you without
+  // one. Attribution is required by OSM's tile usage policy, so the
+  // attribution control stays on -- it is styled small in styles.css.
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   }).addTo(mapInstance);
 
   L.circleMarker([loc.lat, loc.lng], {
