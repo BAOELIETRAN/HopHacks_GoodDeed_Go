@@ -14,6 +14,7 @@ import { api, ApiError, setSession, state } from "../api.js";
 import { esc, h, spinner, statusbar, toast } from "../ui.js";
 import { go } from "../router.js";
 import { quoteOfTheDay } from "../quotes.js";
+import { activeSessionBanner } from "../ui.js";
 import { celebrate, companionSvg, nextStage, stageFor, stageProgress } from "../companion.js";
 
 export async function renderToday(root) {
@@ -28,6 +29,7 @@ export async function renderToday(root) {
     </div>
     <div class="pad" style="padding-top:0" id="companion-slot"></div>
     <div class="pad" style="padding-top:0" id="impact-slot"></div>
+    <div id="session-slot"></div>
     ${quoteCard()}
     <div class="pad" id="tasks" style="padding-top:0">${spinner()}</div>
     <div class="pad" style="padding-top:0">
@@ -113,6 +115,10 @@ export async function renderToday(root) {
           try {
             await api.setCause(btn.dataset.cause);
             paintImpact();
+
+  // If a quest is running, say so here too. Someone who backgrounded the
+  // app and came back to the home screen should not have to remember.
+  activeSessionBanner(root.querySelector("#session-slot"));
           } catch (err) {
             toast(err?.message || "Join a team first to pick a cause", true);
           }
@@ -121,6 +127,10 @@ export async function renderToday(root) {
     };
   };
   paintImpact();
+
+  // If a quest is running, say so here too. Someone who backgrounded the
+  // app and came back to the home screen should not have to remember.
+  activeSessionBanner(root.querySelector("#session-slot"));
 
   const load = async () => {
     const data = await api.todaysTasks();

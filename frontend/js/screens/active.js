@@ -18,6 +18,36 @@ import { go } from "../router.js";
 const HEARTBEAT_MS = 30_000;
 const TICK_MS = 1000;
 
+/* A local mirror of the running session.
+ *
+ * The server owns the clock -- this only exists so a reload shows the
+ * timer immediately instead of a blank screen while /checkins/active
+ * round-trips. Whatever the server says next always wins. */
+const CACHE_KEY = "gdg_active_session";
+
+function cacheSession(session) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ ...session, cached_at: Date.now() }));
+  } catch { /* private mode; the server copy is the real one */ }
+}
+
+function cachedSession() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+    if (!raw || raw.status !== "active") return null;
+    // Anything older than a day is stale beyond usefulness; the server
+    // would have swept the session long before this.
+    if (Date.now() - (raw.cached_at || 0) > 86_400_000) return null;
+    return raw;
+  } catch {
+    return null;
+  }
+}
+
+export function clearCachedSession() {
+  try { localStorage.removeItem(CACHE_KEY); } catch { /* fine */ }
+}
+
 let timers = [];
 
 function clearTimers() {
@@ -51,10 +81,18 @@ const metresBetween = (a, b, c, d) => {
 export async function renderActive(root, { checkin: passed } = {}) {
   clearTimers();
 
-  let session = passed || (await api.activeCheckin().catch(() => null));
-  if (!session || session.status !== "active") {
-    return go("map");
+  // Paint from the local mirror first so a reload shows the running clock
+  // straight away, then reconcile with the server.
+  let session = passed || cachedSession();
+  const fromServer = await api.activeCheckin().catch(() => null);
+  if (fromServer && fromServer.status === "active") {
+    session = fromServer;
+  } else if (fromServer !== null || !session) {
+    // The server says there is no active session. Its word is final.
+    clearCachedSession();
+    return go("today");
   }
+  cacheSession(session);
 
   root.innerHTML = `
     ${statusbar()}
@@ -112,6 +150,7 @@ export async function renderActive(root, { checkin: passed } = {}) {
 
   const ended = (result) => {
     clearTimers();
+    clearCachedSession();
     const why = {
       left_area: "You moved too far from the site, so the timer stopped.",
       timed_out: "We lost your location for a while, so the timer stopped.",
@@ -146,6 +185,7 @@ export async function renderActive(root, { checkin: passed } = {}) {
       const updated = await api.heartbeat(session.checkin_id, loc.lat, loc.lng);
       baseSeconds = updated.elapsed_seconds;
       baseAt = Date.now();
+      cacheSession(updated);
       noteEl.textContent = "The clock is kept by the server, not this phone.";
       if (updated.status !== "active") return ended(updated);
       session = { ...session, ...updated };
@@ -164,6 +204,7 @@ export async function renderActive(root, { checkin: passed } = {}) {
     clearTimers();
     try {
       const done = await api.stopCheckin(session.checkin_id);
+      clearCachedSession();
       if (done.elapsed_minutes < 2) {
         toast("That was under 2 minutes — not enough to log a quest", true);
         return go("map");
@@ -177,6 +218,7 @@ export async function renderActive(root, { checkin: passed } = {}) {
   root.querySelector("#cancel").onclick = async () => {
     clearTimers();
     try { await api.stopCheckin(session.checkin_id); } catch { /* best effort */ }
+    clearCachedSession();
     toast("Quest cancelled");
     go("map");
   };

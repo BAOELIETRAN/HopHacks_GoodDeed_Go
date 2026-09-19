@@ -24,6 +24,10 @@ _ADDITIVE_COLUMNS: dict[str, dict[str, str]] = {
         "google_sub": "VARCHAR(64)",
         "avatar_url": "VARCHAR(512)",
     },
+    "reports": {
+        "total_slots": "INTEGER",
+        "filled_slots": "INTEGER",
+    },
     "opportunities": {
         "website": "VARCHAR(512)",
     },

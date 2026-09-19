@@ -514,6 +514,89 @@ textarea { resize: vertical; min-height: 92px; line-height: 1.5; }
 }
 .list-row:last-child { border-bottom: 0; }
 
+.slot-pill {
+  font-size: 10px; font-weight: 800; padding: 4px 10px; border-radius: var(--r-pill);
+  letter-spacing: .04em; background: var(--blue); color: #a8d8f5;
+  border: 1px solid var(--glass-border); white-space: nowrap;
+}
+.slot-pill.full { background: var(--glass-weak); color: var(--ink-faint); }
+
+/* A "quest running" bar that follows you around the app. */
+.session-banner {
+  display: flex; align-items: center; gap: var(--s3); width: 100%;
+  font-family: inherit; cursor: pointer; text-align: left;
+  background: linear-gradient(180deg, rgba(92,203,125,.24) 0%, rgba(92,203,125,.12) 100%);
+  border: 1px solid rgba(92,203,125,.5); border-radius: var(--r-md);
+  padding: 13px var(--s4); color: var(--ink);
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+}
+.session-banner strong { display: block; font-size: 14px; }
+.session-banner em { font-style: normal; font-size: 12px; color: var(--ink-soft); }
+.session-clock { font-weight: 800; font-size: 18px; font-variant-numeric: tabular-nums; }
+.session-banner .pulse {
+  width: 9px; height: 9px; border-radius: 50%; background: var(--green); flex: 0 0 auto;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(92,203,125,.55); }
+  50%      { opacity: .65; box-shadow: 0 0 0 7px rgba(92,203,125,0); }
+}
+
+.untimed-note {
+  background: var(--glass-weak); border: 1px solid var(--glass-border);
+  border-radius: var(--r-md); padding: 13px var(--s4);
+}
+.untimed-note strong { display: block; font-size: 14px; margin-bottom: 3px; }
+.untimed-note span { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; }
+
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, rgba(255,255,255,.7) 50%),
+                    linear-gradient(135deg, rgba(255,255,255,.7) 50%, transparent 50%);
+  background-position: calc(100% - 20px) center, calc(100% - 14px) center;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 42px;
+}
+select option { background: #0f3b32; color: #fff; }
+
+@media (prefers-reduced-motion: reduce) { .session-banner .pulse { animation: none; } }
+
+/* ---------- Action sheet ---------- */
+.sheet-overlay {
+  position: absolute; inset: 0; z-index: 1900;
+  display: flex; align-items: flex-end; justify-content: center; padding: var(--s4);
+  background: rgba(3, 14, 11, .6);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  animation: sheet-fade .18s ease-out;
+}
+@keyframes sheet-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.sheet {
+  width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 8px;
+  animation: sheet-rise .22s cubic-bezier(.2, .9, .3, 1);
+}
+@keyframes sheet-rise { from { transform: translateY(18px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.sheet-item {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  font-family: inherit; font-weight: 800; font-size: 16px; color: var(--ink);
+  background: var(--glass-strong); border: 1px solid var(--glass-border);
+  border-radius: var(--r-md); padding: 17px var(--s5); cursor: pointer;
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  box-shadow: var(--glass-shadow);
+}
+.sheet-item:active { transform: scale(.985); }
+.sheet-item span { font-size: 20px; }
+.sheet-item.cancel { justify-content: center; color: var(--ink-soft); font-size: 15px; }
+
+@media (min-width: 900px) {
+  .sheet-overlay { align-items: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-overlay, .sheet { animation: none !important; }
+}
+
 /* ---------- Team impact ----------
    Sits under the companion on purpose: the creature is the game, this is
    what the game is for. */

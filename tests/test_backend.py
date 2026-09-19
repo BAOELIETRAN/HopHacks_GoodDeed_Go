@@ -317,7 +317,13 @@ def test_report_full_lifecycle_credits_the_claimant(client: TestClient):
 
     claimed = client.post(f"/reports/{report['report_id']}/claim", headers=auth(maya_token)).json()
     assert claimed["status"] == "claimed"
-    assert claimed["claimed_by_name"] == "Maya"
+    # Helper identities are never returned. Pairing "who volunteered" with a
+    # report's location and time is exactly what the anonymity rule exists to
+    # prevent, so the API sends counts only.
+    assert claimed["claimed_by_name"] is None
+    assert claimed["claimed_by"] is None
+    assert claimed["filled_slots"] == 1
+    assert claimed["claimed_by_me"] is True   # the helper's own view
 
     # claiming an already-claimed report fails, distinctly from the self-claim rule
     resp = client.post(f"/reports/{report['report_id']}/claim", headers=auth(omar_token))
@@ -432,3 +438,88 @@ def test_health(client: TestClient):
     body = resp.json()
     assert body["status"] == "ok"
     assert body["agent"]["llm_provider"] == "mock"
+
+
+def test_report_slots_fill_and_hide_from_browsing(client: TestClient):
+    """A multi-helper post tracks counts, stays anonymous, and drops out of
+    browsing once full while remaining visible to the people involved."""
+    poster = signup(client, "Pia", "pia.slots@example.com")["token"]
+    h1 = signup(client, "Hal", "hal.slots@example.com")["token"]
+    h2 = signup(client, "Hana", "hana.slots@example.com")["token"]
+    browser = signup(client, "Bo", "bo.slots@example.com")["token"]
+
+    created = client.post(
+        "/reports",
+        json={
+            "photo_url": "https://example.com/trash.jpg",
+            "description": "Fly-tipped bags behind the shops, needs a few hands.",
+            "lat": 39.3299, "lng": -76.6205, "total_slots": 2,
+        },
+        headers=auth(poster),
+    ).json()
+    rid = created["report_id"]
+    assert created["total_slots"] == 2 and created["filled_slots"] == 0
+
+    first = client.post(f"/reports/{rid}/claim", headers=auth(h1)).json()
+    assert first["filled_slots"] == 1 and first["is_full"] is False
+
+    # The same person cannot take a second slot.
+    assert client.post(f"/reports/{rid}/claim", headers=auth(h1)).status_code == 409
+
+    full = client.post(f"/reports/{rid}/claim", headers=auth(h2)).json()
+    assert full["is_full"] is True and full["slots_left"] == 0
+    assert client.post(f"/reports/{rid}/claim", headers=auth(browser)).status_code == 409
+
+    def visible(token):
+        rows = client.get(
+            "/reports", params={"lat": 39.3299, "lng": -76.6205, "radius": 16},
+            headers=auth(token),
+        ).json()
+        return any(r["report_id"] == rid for r in rows)
+
+    assert not visible(browser)      # full posts leave the browse view
+    assert visible(poster)           # the poster still tracks it
+    assert visible(h1) and visible(h2)   # helpers still have work to finish
+
+
+def test_submission_time_can_be_trimmed_but_not_inflated(client: TestClient):
+    """A measured session may be corrected downward only.
+
+    Allowing an upward revision would hand back the unverifiable claim the
+    timer exists to remove.
+    """
+    token = signup(client, "Tim", "tim.timer@example.com")["token"]
+    started = client.post(
+        "/checkins",
+        json={
+            "org_name": "Maryland SPCA", "org_lat": 39.3429, "org_lng": -76.6275,
+            "lat": 39.3430, "lng": -76.6276,
+            "category": "animal_shelter", "quest_type": "daily",
+        },
+        headers=auth(token),
+    ).json()
+
+    # Reach the fixture's in-memory database through the same dependency
+    # override the app uses, rather than the real SessionLocal.
+    from backend import db_models as dm
+    from backend.database import get_db
+
+    db = next(app.dependency_overrides[get_db]())
+    row = db.get(dm.CheckIn, started["checkin_id"])
+    row.elapsed_seconds = 90 * 60
+    db.commit()
+    db.close()
+
+    def submit(adjusted):
+        body = {
+            "deed_type": "volunteer", "org_name": "Maryland SPCA",
+            "photo_url": "https://example.com/trash.jpg", "description": "Walked dogs and cleaned the kennels.",
+            "lat": 39.3430, "lng": -76.6276, "submitted_at": "2026-09-19T12:00:00Z",
+            "checkin_id": started["checkin_id"],
+        }
+        if adjusted is not None:
+            body["adjusted_minutes"] = adjusted
+        return client.post("/submissions", json=body, headers=auth(token)).json()
+
+    trimmed = submit(30)
+    assert trimmed["time_spent_minutes"] == 30   # honoured downward

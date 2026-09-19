@@ -246,6 +246,27 @@ class Comment(Base):
     )
 
 
+class ReportHelper(Base):
+    """Someone who took a slot on a community report.
+
+    Stored because the backend has to stop one person taking several slots
+    and needs to know who may submit proof -- and deliberately never
+    surfaced by name. The public feed and the poster both see a count.
+
+    Anonymity here is a safety property, not a preference: these posts
+    carry a location, and pairing "who volunteered" with "where and when"
+    is exactly the information a stranger should not be able to assemble.
+    """
+
+    __tablename__ = "report_helpers"
+    __table_args__ = (UniqueConstraint("report_id", "user_id", name="uq_report_helper"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    report_id: Mapped[str] = mapped_column(String(32), ForeignKey("reports.id"), index=True)
+    user_id: Mapped[str] = mapped_column(String(32), ForeignKey("users.id"), index=True)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class Opportunity(Base):
     """Cached agent.find_opportunities() results for a (lat, lng, radius) bucket."""
 
@@ -294,6 +315,12 @@ class Report(Base):
     lat: Mapped[float] = mapped_column(Float)
     lng: Mapped[float] = mapped_column(Float)
     status: Mapped[str] = mapped_column(String(16), default="open")
+
+    # How many people the poster needs. filled_slots is denormalised from
+    # ReportHelper so the feed can filter on it without a join per row --
+    # the two are only ever written together, inside one transaction.
+    total_slots: Mapped[int] = mapped_column(Integer, default=1)
+    filled_slots: Mapped[int] = mapped_column(Integer, default=0)
     claimed_by: Mapped[str | None] = mapped_column(String(32), ForeignKey("users.id"), nullable=True)
     created_at: Mapped[str] = mapped_column(String(64))  # ISO-8601
 

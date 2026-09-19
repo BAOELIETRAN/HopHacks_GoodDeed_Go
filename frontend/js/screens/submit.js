@@ -254,19 +254,43 @@ export async function renderSubmit(root, { quest, checkin, deedType } = {}) {
       ${measured ? `
         <div class="form-section">
           <div class="verified-time">
-            <strong>✓ ${measured.elapsed_minutes} minutes, verified</strong>
-            <span>Timed on site — nothing to type in.</span>
+            <strong>✓ ${measured.elapsed_minutes} ${measured.elapsed_minutes === 1 ? "minute" : "minutes"}, timed</strong>
+            <span>Measured on site — nothing to type in.</span>
+            <button type="button" class="btn-link" data-adjust-time>That's not right</button>
+            <div data-adjust-box hidden>
+              <label class="field-label" for="mins" style="margin-top:10px">
+                Actual time on the deed (minutes)
+              </label>
+              <input type="number" id="mins" min="0" max="${measured.elapsed_minutes}"
+                     step="5" value="${measured.elapsed_minutes}">
+              <p class="field-hint">
+                You can only lower this. If the timer ran through a break, trim it.
+              </p>
+            </div>
           </div>
-          <input type="hidden" id="mins" value="${measured.elapsed_minutes}">
+          ${measured.elapsed_minutes > 0 ? "" : ""}
         </div>`
         : needsTime ? `
         <div class="form-section">
-          <label class="field-label" for="mins">Time spent (minutes)</label>
-          <input type="number" id="mins" min="0" max="600" step="5" value="45">
-          <p class="field-hint">Starting from a quest times it for you, and scores higher.</p>
+          <div class="untimed-note">
+            <strong>Not timed</strong>
+            <span>
+              This one scores on the deed itself. Next time, open the quest and
+              tap “I'm here” — the app times it for you and it's worth more.
+            </span>
+          </div>
         </div>`
-        : `<input type="hidden" id="mins" value="0">`}
+        : ""}
     `;
+
+    const adjustBtn = fieldsEl.querySelector("[data-adjust-time]");
+    if (adjustBtn) {
+      adjustBtn.onclick = () => {
+        const box = fieldsEl.querySelector("[data-adjust-box]");
+        box.hidden = !box.hidden;
+        adjustBtn.textContent = box.hidden ? "That's not right" : "Never mind";
+      };
+    }
 
     setupPhotoInput({
       dropzone: fieldsEl.querySelector("#dropzone"),
@@ -322,12 +346,12 @@ export async function renderSubmit(root, { quest, checkin, deedType } = {}) {
   sendBtn.onclick = async () => {
     const org = fieldsEl.querySelector("#org")?.value.trim() || "";
     const description = fieldsEl.querySelector("#desc").value.trim();
-    const minutes = parseInt(fieldsEl.querySelector("#mins")?.value, 10) || 0;
+    const minutesEl = fieldsEl.querySelector("#mins");
+    const minutes = minutesEl ? parseInt(minutesEl.value, 10) || 0 : 0;
 
     const problem =
       spec.photo_required && !photoDataUrl ? `This kind of deed needs evidence: ${spec.evidence.toLowerCase()}.`
       : description.length < 10 ? "Add a sentence or two about what you did."
-      : spec.time_required && !measured && minutes <= 0 ? "Enter how many minutes you spent."
       : null;
     if (problem) {
       errEl.textContent = problem;
@@ -350,8 +374,10 @@ export async function renderSubmit(root, { quest, checkin, deedType } = {}) {
         lng: loc.lng,
         submitted_at: new Date().toISOString(),
         // The server ignores the minutes above when this is present and
-        // uses what it measured instead.
+        // uses what it measured instead -- unless the user trimmed it.
         checkin_id: measured ? measured.checkin_id : undefined,
+        adjusted_minutes:
+          measured && minutes < measured.elapsed_minutes ? minutes : undefined,
       });
       if (state.user) {
         setSession(state.token, {

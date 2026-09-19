@@ -124,6 +124,53 @@ export function radiusPicker(onChange) {
   return el;
 }
 
+/** A "quest running" bar, shown wherever the user happens to be. */
+export async function activeSessionBanner(mount) {
+  if (!mount) return;
+  const { api } = await import("./api.js");
+  const { go } = await import("./router.js");
+  let session;
+  try {
+    session = await api.activeCheckin();
+  } catch {
+    return;
+  }
+  if (!session || session.status !== "active") {
+    mount.replaceChildren();
+    return;
+  }
+
+  const started = new Date(session.started_at).getTime();
+  const el = h(`
+    <div class="pad" style="padding-top:0">
+      <button class="session-banner">
+        <span class="pulse"></span>
+        <span class="grow" style="text-align:left">
+          <strong>Quest running</strong>
+          <em>${esc(session.org_name)}</em>
+        </span>
+        <span class="session-clock" data-clock>0:00</span>
+      </button>
+    </div>`);
+
+  const clock = el.querySelector("[data-clock]");
+  const tick = () => {
+    const secs = session.elapsed_seconds + Math.max(0, (Date.now() - started) / 1000 - session.elapsed_seconds);
+    const s = Math.floor(secs);
+    clock.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  };
+  tick();
+  const timer = setInterval(tick, 1000);
+  // Stop when the banner leaves the page, so a stale interval doesn't keep
+  // writing to a detached node.
+  new MutationObserver((_, obs) => {
+    if (!document.contains(el)) { clearInterval(timer); obs.disconnect(); }
+  }).observe(document.body, { childList: true, subtree: true });
+
+  el.querySelector(".session-banner").onclick = () => go("active", { checkin: session });
+  mount.replaceChildren(el);
+}
+
 let toastTimer;
 export function toast(message, isError = false) {
   document.querySelector(".toast")?.remove();
@@ -195,12 +242,30 @@ export function setupPhotoInput({ dropzone, input, guide, onPhoto, onError }) {
     onError?.(message);
   };
 
-  input.onchange = async () => {
-    const file = input.files?.[0];
-    if (!file) return;
-    console.info("[gdg] photo selected:", file.name, file.type || "(no type)", `${Math.round(file.size / 1024)}KB`);
+  /* Two inputs, not one.
+   *
+   * `capture="environment"` is a hint that tells a phone to open the
+   * camera directly; without it the same input opens the photo library.
+   * You cannot have both from one element, and toggling the attribute
+   * after a user gesture is unreliable across browsers -- so there are two
+   * inputs and a small chooser decides which one to click.
+   *
+   * Desktop has no camera capture, so the button is hidden there rather
+   * than opening a file dialog that pretends to be a camera. */
+  const cameraInput = input.cloneNode();
+  cameraInput.id = `${input.id || "photo"}-camera`;
+  cameraInput.setAttribute("capture", "environment");
+  input.removeAttribute("capture");
+  input.parentNode.insertBefore(cameraInput, input);
 
+  const handle = async (file) => {
+    if (!file) return;
+    console.info(
+      "[gdg] photo selected:",
+      file.name, file.type || "(no type)", `${Math.round(file.size / 1024)}KB`,
+    );
     onError?.(null);
+
     let dataUrl;
     try {
       dataUrl = await compressImage(file);
@@ -208,31 +273,27 @@ export function setupPhotoInput({ dropzone, input, guide, onPhoto, onError }) {
       return fail(err?.message || "Couldn't read that image.");
     }
 
-    // Preview from an object URL: cheaper than re-decoding a multi-megabyte
-    // base64 string, and it tells us whether the browser can render it at
-    // all before the user waits on an upload that will fail.
+    // Preview from an object URL: cheaper than decoding a multi-megabyte
+    // base64 string, and it reveals a format the browser cannot render
+    // before the user waits on an upload that would fail.
     release();
     objectUrl = URL.createObjectURL(file);
 
     const img = new Image();
     img.alt = "Your photo";
-    img.onload = () => {
+    const show = (el) => {
       dropzone.querySelector("img")?.remove();
-      dropzone.appendChild(img);
+      dropzone.appendChild(el);
       if (guide) guide.style.display = "none";
       onPhoto?.(dataUrl);
     };
+    img.onload = () => show(img);
     img.onerror = () => {
-      // The compressed data URL can still be fine when the original is a
-      // format the browser won't preview, so try it before giving up.
+      // The compressed copy can still be fine when the original is a
+      // format the browser will not preview.
       const fallback = new Image();
       fallback.alt = "Your photo";
-      fallback.onload = () => {
-        dropzone.querySelector("img")?.remove();
-        dropzone.appendChild(fallback);
-        if (guide) guide.style.display = "none";
-        onPhoto?.(dataUrl);
-      };
+      fallback.onload = () => show(fallback);
       fallback.onerror = () =>
         fail(
           "This device saved that photo in a format browsers can't show (usually HEIC). " +
@@ -243,7 +304,60 @@ export function setupPhotoInput({ dropzone, input, guide, onPhoto, onError }) {
     img.src = objectUrl;
   };
 
-  return { reset: showPlaceholder, release };
+  input.onchange = () => handle(input.files?.[0]);
+  cameraInput.onchange = () => handle(cameraInput.files?.[0]);
+
+  // The dropzone is a <label>; without this every tap would also trigger
+  // its bound input and bypass the chooser entirely.
+  dropzone.addEventListener("click", (e) => {
+    if (e.target === cameraInput || e.target === input) return;
+    e.preventDefault();
+    openChooser();
+  });
+
+  function openChooser() {
+    if (!hasCamera()) return input.click();   // desktop: straight to files
+
+    const sheet = h(`
+      <div class="sheet-overlay" role="dialog" aria-modal="true" aria-label="Add a photo">
+        <div class="sheet">
+          <button class="sheet-item" data-cam><span>📷</span> Take photo</button>
+          <button class="sheet-item" data-file><span>🖼️</span> Choose from files</button>
+          <button class="sheet-item cancel" data-cancel>Cancel</button>
+        </div>
+      </div>`);
+    const close = () => sheet.remove();
+    sheet.querySelector("[data-cam]").onclick = () => { close(); cameraInput.click(); };
+    sheet.querySelector("[data-file]").onclick = () => { close(); input.click(); };
+    sheet.querySelector("[data-cancel]").onclick = close;
+    sheet.onclick = (e) => { if (e.target === sheet) close(); };
+    document.addEventListener("keydown", function esc(e) {
+      if (e.key === "Escape") { close(); document.removeEventListener("keydown", esc); }
+    });
+    (document.getElementById("app") || document.body).appendChild(sheet);
+  }
+
+  return { reset: showPlaceholder, release, openChooser };
+}
+
+/** Is there a camera worth offering?
+ *
+ *  Coarse on purpose. enumerateDevices needs permission before it will
+ *  name devices, and asking for camera access just to decide whether to
+ *  draw a button is worse than occasionally showing it on a laptop that
+ *  has a webcam anyway. */
+export function hasCamera() {
+  if (typeof navigator === "undefined") return false;
+  // Touch plus a coarse pointer is the honest signal for "this is a phone
+  // or tablet". The earlier version also tested `"capture" in input`, but
+  // that IDL property is not reflected everywhere the *attribute* works,
+  // so it produced false negatives on devices that do have a camera.
+  const touch = navigator.maxTouchPoints > 0 || "ontouchstart" in globalThis;
+  const coarse =
+    typeof window === "undefined" ||
+    typeof window.matchMedia !== "function" ||
+    window.matchMedia("(pointer: coarse)").matches;
+  return Boolean(touch && coarse);
 }
 
 /** Shrink a photo before upload. Phone cameras produce 3-6MB JPEGs; sending

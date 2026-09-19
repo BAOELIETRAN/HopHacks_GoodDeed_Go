@@ -31,6 +31,15 @@ def _user_name(db: DbSession, user_id: str | None) -> Optional[str]:
     return user.name if user else None
 
 
+def _is_helper(db: DbSession, report_id: str, user_id: str) -> bool:
+    return (
+        db.query(m.ReportHelper)
+        .filter(m.ReportHelper.report_id == report_id, m.ReportHelper.user_id == user_id)
+        .first()
+        is not None
+    )
+
+
 def _claim_expires_at(row: m.Report) -> str | None:
     """When an untouched claim returns to the feed, or None if it won't."""
     if row.status != "claimed" or row.proof_submitted_at or not row.claimed_at:
@@ -52,16 +61,20 @@ def _to_out(db: DbSession, row: m.Report, viewer: m.User | None = None) -> Repor
         lat=row.lat,
         lng=row.lng,
         status=row.status,  # type: ignore[arg-type]
-        claimed_by=row.claimed_by,
+        claimed_by=None,  # never exposed; see ReportHelper
         created_at=row.created_at,
         reported_by=row.reported_by,
         reported_by_name=_user_name(db, row.reported_by) or "?",
-        claimed_by_name=_user_name(db, row.claimed_by),
+        claimed_by_name=None,  # helpers stay anonymous
         estimated_points=estimate_points(row.category),
         awaiting_confirmation=row.status == "claimed" and row.proof_photo_url is not None,
         points_awarded=row.points_awarded,
         is_mine=bool(viewer and row.reported_by == viewer.id),
-        claimed_by_me=bool(viewer and row.claimed_by == viewer.id),
+        claimed_by_me=bool(viewer and _is_helper(db, row.id, viewer.id)),
+        total_slots=row.total_slots or 1,
+        filled_slots=row.filled_slots or 0,
+        slots_left=max(0, (row.total_slots or 1) - (row.filled_slots or 0)),
+        is_full=(row.filled_slots or 0) >= (row.total_slots or 1),
         claim_expires_at=_claim_expires_at(row),
     )
 
@@ -151,6 +164,8 @@ def create_report(
         lat=body.lat,
         lng=body.lng,
         status="open",
+        total_slots=body.total_slots,
+        filled_slots=0,
         created_at=datetime.now(timezone.utc).isoformat(),
         category=classification["category"],
         classification_confidence=classification.get("confidence"),
@@ -179,7 +194,18 @@ def list_reports(
 
     nearby = [r for r in query.all() if haversine_km(lat, lng, r.lat, r.lng) <= radius]
     nearby.sort(key=lambda r: haversine_km(lat, lng, r.lat, r.lng))
-    return [_to_out(db, r, user) for r in nearby]
+
+    # A post with every spot taken drops out of browsing -- showing needs
+    # nobody can act on is just noise -- but stays visible to the poster
+    # and to the people who joined, who still have to finish it.
+    mine = {h.report_id for h in db.query(m.ReportHelper).filter(m.ReportHelper.user_id == user.id)}
+    visible = [
+        r for r in nearby
+        if (r.filled_slots or 0) < (r.total_slots or 1)
+        or r.reported_by == user.id
+        or r.id in mine
+    ]
+    return [_to_out(db, r, user) for r in visible]
 
 
 @router.get("/reports/{report_id}", response_model=ReportDetailOut)
@@ -205,12 +231,25 @@ def claim_report(
         raise HTTPException(status_code=404, detail="Report not found")
     if row.reported_by == user.id:
         raise HTTPException(status_code=400, detail="You can't claim your own report")
-    if row.status != "open":
-        raise HTTPException(status_code=409, detail=f"Report is already {row.status}")
+    if row.status == "done":
+        raise HTTPException(status_code=409, detail="That one's already finished")
+    if _is_helper(db, row.id, user.id):
+        raise HTTPException(status_code=409, detail="You've already joined this one")
 
+    total = row.total_slots or 1
+    if (row.filled_slots or 0) >= total:
+        raise HTTPException(status_code=409, detail="All the spots are taken")
+
+    db.add(m.ReportHelper(report_id=row.id, user_id=user.id))
+    row.filled_slots = (row.filled_slots or 0) + 1
+
+    # claimed_by holds the *first* helper, for the existing proof flow.
+    # It is never returned to clients -- see _to_out.
+    if row.claimed_by is None:
+        row.claimed_by = user.id
+        row.claimed_at = datetime.now(timezone.utc).isoformat()
     row.status = "claimed"
-    row.claimed_by = user.id
-    row.claimed_at = datetime.now(timezone.utc).isoformat()
+
     db.commit()
     db.refresh(row)
     return _to_out(db, row, user)
@@ -230,8 +269,10 @@ def submit_proof(
     row = db.get(m.Report, report_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Report not found")
-    if row.claimed_by != user.id:
-        raise HTTPException(status_code=403, detail="Only the user who claimed this report can submit proof")
+    if not _is_helper(db, row.id, user.id):
+        raise HTTPException(
+            status_code=403, detail="Only someone who joined this one can submit proof"
+        )
     if row.status != "claimed":
         raise HTTPException(status_code=409, detail=f"Report is {row.status}, not claimed")
 

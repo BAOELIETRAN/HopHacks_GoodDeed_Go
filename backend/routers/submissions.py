@@ -58,6 +58,11 @@ def create_submission(
     if body.checkin_id:
         checkin = consume_for_submission(db, user, body.checkin_id)
         minutes = checkin.elapsed_seconds // 60
+        if body.adjusted_minutes is not None:
+            # Downward only. An honest correction is common -- a forgotten
+            # timer, a long break -- and refusing it would push people to
+            # not use the timer at all.
+            minutes = min(minutes, body.adjusted_minutes)
         category = checkin.category or category
         quest_type = checkin.quest_type or quest_type
 

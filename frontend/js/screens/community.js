@@ -75,16 +75,14 @@ function reportCard(r, reload) {
   const mine = r.is_mine;
 
   let action = "";
-  if (r.status === "open" && !mine) action = `<button class="btn btn-primary btn-sm" data-act="claim">I'll help</button>`;
-  else if (r.status === "open" && mine) action = `<span class="tiny">Waiting for a helper</span>`;
-  else if (r.status === "claimed" && iClaimed && !r.awaiting_confirmation)
-    action = `<button class="btn btn-primary btn-sm" data-act="proof">Add proof</button>`;
-  else if (r.status === "claimed" && mine && r.awaiting_confirmation)
+  if (r.status === "done") action = `<span class="status-pill status-done">✓ Done</span>`;
+  else if (mine && r.awaiting_confirmation)
     action = `<button class="btn btn-primary btn-sm" data-act="complete">Confirm &amp; remove</button>`;
-  else if (r.status === "claimed" && iClaimed && r.awaiting_confirmation)
-    action = `<span class="tiny">Waiting on ${esc(r.reported_by_name)}</span>`;
-  else if (r.status === "claimed") action = `<span class="tiny">Claimed by ${esc(r.claimed_by_name || "someone")}</span>`;
-  else if (r.status === "done") action = `<span class="status-pill status-done">✓ Done</span>`;
+  else if (mine) action = `<span class="tiny">Your post</span>`;
+  else if (iClaimed && r.awaiting_confirmation) action = `<span class="tiny">Waiting on the poster</span>`;
+  else if (iClaimed) action = `<button class="btn btn-primary btn-sm" data-act="proof">Add proof</button>`;
+  else if (r.is_full) action = `<span class="tiny">Spots full</span>`;
+  else action = `<button class="btn btn-primary btn-sm" data-act="claim">I'll help</button>`;
 
   const left = timeLeft(r.claim_expires_at);
   const urgent = left && !left.includes("h");
@@ -98,7 +96,11 @@ function reportCard(r, reload) {
         <div class="grow">
           <div class="meta-row" style="margin-bottom:5px">
             <span class="status-pill status-${esc(r.status)}">${esc(r.status)}</span>
-            ${iClaimed ? `<span class="status-pill status-claimed">Yours</span>` : ""}
+            ${iClaimed ? `<span class="status-pill status-claimed">You joined</span>` : ""}
+            ${(r.total_slots || 1) > 1
+              ? `<span class="slot-pill ${r.is_full ? "full" : ""}">
+                   ${r.filled_slots}/${r.total_slots} helpers
+                 </span>` : ""}
             ${left ? `<span class="countdown ${urgent ? "urgent" : ""}">⏱ ${esc(left)}</span>` : ""}
           </div>
           <h3>${esc(r.description || "Community need")}</h3>
@@ -125,7 +127,7 @@ function reportCard(r, reload) {
       try {
         if (btn.dataset.act === "claim") {
           await api.claimReport(r.report_id);
-          toast("Claimed — it's yours for the next 3 hours");
+          toast("You're in — head over, then add proof");
         } else if (btn.dataset.act === "complete") {
           await api.completeReport(r.report_id);
           toast("Confirmed and removed from the feed");
@@ -179,10 +181,21 @@ export function renderReportForm(root) {
         </div>
       </label>
 
-      <label class="field">
-        <span>What needs fixing?</span>
+      <div class="form-section">
+        <label class="field-label" for="desc">What needs fixing?</label>
         <textarea id="desc" placeholder="e.g. Overflowing bins at the corner of 3rd and Maple"></textarea>
-      </label>
+      </div>
+
+      <div class="form-section">
+        <label class="field-label" for="slots">How many people are needed?</label>
+        <select id="slots">
+          ${[1,2,3,4,5,6,7,8,9,10].map((n) =>
+            `<option value="${n}">${n} ${n === 1 ? "person" : "people"}</option>`).join("")}
+        </select>
+        <p class="field-hint">
+          The post stops accepting helpers once that many have joined.
+        </p>
+      </div>
 
       <p class="err" id="formerr" hidden></p>
       <button class="btn btn-primary" id="send">Post to the feed</button>
@@ -225,7 +238,13 @@ export function renderReportForm(root) {
     sendBtn.textContent = "Checking…";
     try {
       const loc = await getLocation();
-      await api.createReport({ photo_url: photo, description, lat: loc.lat, lng: loc.lng });
+      await api.createReport({
+        photo_url: photo,
+        description,
+        lat: loc.lat,
+        lng: loc.lng,
+        total_slots: parseInt(root.querySelector("#slots").value, 10) || 1,
+      });
       toast("Posted to the community feed");
       go("community");
     } catch (err) {
@@ -253,7 +272,8 @@ export function renderProof(root, { report }) {
     <div class="pad stack">
       <div class="panel panel-mint">
         <h3 style="font-size:16px">${esc(report.description || "Community need")}</h3>
-        <p class="tiny">Reported by ${esc(report.reported_by_name || "a neighbour")}</p>
+        <p class="tiny">Community report${
+          (report.total_slots || 1) > 1 ? ` · ${report.filled_slots}/${report.total_slots} helpers` : ""}</p>
       </div>
       <label class="dropzone" id="dropzone">
         <input type="file" accept="image/*" capture="environment" id="photo">
@@ -270,7 +290,7 @@ export function renderProof(root, { report }) {
       <p class="err" id="formerr" hidden></p>
       <button class="btn btn-primary" id="send">Submit proof</button>
       <p class="tiny center">
-        ${esc(report.reported_by_name || "The reporter")} confirms completion before it leaves the feed.
+        The person who posted it confirms completion before it leaves the feed.
       </p>
     </div>`;
 

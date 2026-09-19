@@ -201,6 +201,11 @@ class SubmissionCreate(BaseModel):
     # A finished presence-verified session. When present, minutes come from
     # the server's clock and the submission is marked verified.
     checkin_id: Optional[str] = None
+    # Optional correction to the measured time, e.g. "I left the timer
+    # running through lunch". Only ever downward -- letting someone revise
+    # upward would hand back exactly the unverifiable claim the timer
+    # exists to remove.
+    adjusted_minutes: Optional[int] = Field(default=None, ge=0)
 
 
 class SubmissionOut(BaseModel):
@@ -371,6 +376,9 @@ class ReportCreate(BaseModel):
     description: str = ""
     lat: float
     lng: float
+    # How many helpers the poster wants. One is the common case; the cap
+    # keeps a single post from swallowing a whole neighbourhood's effort.
+    total_slots: int = Field(default=1, ge=1, le=10)
 
 
 class ReportOut(BaseModel):
@@ -393,6 +401,12 @@ class ReportOut(BaseModel):
     # it from ids on every card.
     is_mine: bool = False          # the requester posted it
     claimed_by_me: bool = False    # the requester claimed it
+    # Slot counts only. Helper identities are never sent to any client --
+    # see db_models.ReportHelper for why.
+    total_slots: int = 1
+    filled_slots: int = 0
+    slots_left: int = 1
+    is_full: bool = False
     # When an untouched claim returns to the feed, so the claimant can see a
     # countdown instead of silently losing it.
     claim_expires_at: Optional[str] = None
