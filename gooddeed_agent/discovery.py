@@ -433,6 +433,57 @@ def trust_check(
     ).to_dict()
 
 
+def _interleave_by_category(
+    opportunities: list[dict[str, Any]], max_results: int
+) -> list[dict[str, Any]]:
+    """Round-robin across categories so the map is not all one thing.
+
+    A pure legitimacy sort is the wrong ranking for a map-based game: big
+    well-reviewed food banks sweep the top of every list and the player never
+    sees the animal shelter two blocks away. This takes the best remaining org
+    from each category in turn, so variety survives truncation while the
+    strongest org within each category still leads it.
+
+    Categories are visited in order of their best-scoring member, so the
+    single most legitimate org overall is still first.
+    """
+    buckets: dict[str, list[dict[str, Any]]] = {}
+    for opportunity in opportunities:
+        buckets.setdefault(opportunity["category"], []).append(opportunity)
+
+    # Within a bucket, push repeat org names later. Chains like a thrift shop
+    # with four branches are all legitimate, separate map pins, but letting one
+    # name take every slot in its category defeats the point of interleaving.
+    # A stable sort on "how many times have we seen this name already" keeps
+    # legitimacy order intact among first appearances.
+    for bucket in buckets.values():
+        counts: dict[str, int] = {}
+        ranked = []
+        for opportunity in bucket:
+            name = opportunity["org_name"].casefold()
+            ranked.append((counts.get(name, 0), opportunity))
+            counts[name] = counts.get(name, 0) + 1
+        bucket[:] = [opportunity for _rank, opportunity in sorted(ranked, key=lambda r: r[0])]
+
+    # Inputs arrive sorted by legitimacy, so each bucket is already ordered.
+    order = sorted(buckets, key=lambda c: -buckets[c][0]["legitimacy_score"])
+
+    interleaved: list[dict[str, Any]] = []
+    while len(interleaved) < max_results:
+        progressed = False
+        for category in order:
+            bucket = buckets[category]
+            if not bucket:
+                continue
+            interleaved.append(bucket.pop(0))
+            progressed = True
+            if len(interleaved) >= max_results:
+                break
+        if not progressed:
+            break  # every bucket drained
+    return interleaved
+
+
 def find_opportunities(
     lat: float,
     lng: float,
@@ -443,6 +494,7 @@ def find_opportunities(
     max_queries: int = 24,
     max_results: int = 20,
     min_legitimacy: float = 0.4,
+    diversify: bool = True,
     verify: bool = False,
     max_verify: int = 5,
     include_description: bool = False,
@@ -464,6 +516,9 @@ def find_opportunities(
         max_results: Cap on returned opportunities.
         min_legitimacy: Drop anything scoring below this. Keeps permanently
             closed and obviously-not-a-nonprofit results off the map.
+        diversify: Interleave results across categories so the map shows a
+            mix rather than 20 food banks. On by default. Set False for a
+            strict legitimacy ranking.
         verify: Run a real web-search trust check on the top results. Off by
             default because it costs one LLM call per org; turn it on for a
             curated map refresh rather than every pan of the viewport.
@@ -497,7 +552,11 @@ def find_opportunities(
         search_terms = search_terms[:max_queries]
 
     try:
-        raw_places = places.search_nearby(lat, lng, radius_km, search_terms, max_results * 2)
+        # Pull a generous candidate pool: diversification and the legitimacy
+        # filter both need more to work with than the final count.
+        raw_places = places.search_nearby(
+            lat, lng, radius_km, search_terms, max(max_results * 4, 80)
+        )
     except Exception as exc:  # incl. raw connection errors, not just ProviderError
         log.error("Places lookup failed: %s", exc)
         return []
@@ -529,6 +588,7 @@ def find_opportunities(
     for legitimacy, place in scored:
         if legitimacy < min_legitimacy:
             continue
+
         category = normalize_category(place["category"])
         record = Opportunity(
             org_name=place["name"],
@@ -544,7 +604,9 @@ def find_opportunities(
             # seven-field contract are unaffected.
             record["description"] = place.get("web_summary", "")
         opportunities.append(record)
-        if len(opportunities) >= max_results:
-            break
 
-    return opportunities
+    # Rank last, over everything that qualified, so diversification has the
+    # full candidate pool to draw from rather than a pre-truncated list.
+    if diversify:
+        return _interleave_by_category(opportunities, max_results)
+    return opportunities[:max_results]

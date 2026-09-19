@@ -64,6 +64,13 @@ find_opportunities(lat, lng, 5, packs=["all"], max_queries=60)  # everything
 find_opportunities(lat, lng, 5, queries=["beach cleanup"])      # your own
 ```
 
+Results are **interleaved across categories** by default, so the map shows a
+mix rather than 20 food banks — a strict legitimacy sort buries every smaller
+category. Repeat org names are pushed later within a category too, so one
+thrift chain's four branches don't take every slot (all four are still
+returned; they're separate map pins). Pass `diversify=False` for a pure
+legitimacy ranking.
+
 **Each query is one billed Places request.** The default fan-out takes the
 broadest one or two queries from every domain; `packs=["all"]` roughly triples
 the cost per refresh. `max_queries` (default 24) is the guard — raise it

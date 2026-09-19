@@ -139,3 +139,68 @@ class TestFanOutControls:
         # A regression guard: growing DEFAULT_QUERIES past max_queries would
         # silently truncate it instead of erroring.
         assert len(DEFAULT_QUERIES) <= 24
+
+
+class TestDiversification:
+    """A map showing 20 food banks is a worse game than one showing 15
+    different kinds of help, even if the food banks rank higher."""
+
+    def _places(self, records):
+        class Fixed:
+            def search_nearby(self, *a, **k):
+                return records
+        return Fixed()
+
+    def _record(self, name, query, rating_count, place_id):
+        return {
+            "name": name, "address": "1 Main St", "lat": 39.29, "lng": -76.61,
+            "types": [], "rating": 4.5, "rating_count": rating_count,
+            "website": "https://x.org", "business_status": "OPERATIONAL",
+            "place_id": place_id, "matched_query": query,
+        }
+
+    def test_one_dominant_category_does_not_crowd_out_the_rest(self, llm):
+        # 20 highly-rated food banks, 2 lower-rated animal shelters.
+        records = [self._record(f"Food Bank {i}", "food bank", 900, f"f{i}") for i in range(20)]
+        records += [self._record(f"Animal Rescue {i}", "animal shelter", 30, f"a{i}") for i in range(2)]
+        result = find_opportunities(
+            39.29, -76.61, 5.0, max_results=6, places=self._places(records), llm=llm
+        )
+        categories = {o["category"] for o in result}
+        assert "animal_shelter" in categories, "lower-scoring category was starved out"
+
+    def test_diversify_off_gives_a_strict_legitimacy_ranking(self, llm):
+        records = [self._record(f"Food Bank {i}", "food bank", 900, f"f{i}") for i in range(20)]
+        records += [self._record("Animal Rescue", "animal shelter", 30, "a0")]
+        result = find_opportunities(
+            39.29, -76.61, 5.0, max_results=5, diversify=False,
+            places=self._places(records), llm=llm,
+        )
+        scores = [o["legitimacy_score"] for o in result]
+        assert scores == sorted(scores, reverse=True)
+        assert {o["category"] for o in result} == {"food_bank"}
+
+    def test_best_org_overall_still_leads(self, llm):
+        records = [self._record("Top Food Bank", "food bank", 5000, "f0")]
+        records += [self._record(f"Animal Rescue {i}", "animal shelter", 10, f"a{i}") for i in range(3)]
+        result = find_opportunities(
+            39.29, -76.61, 5.0, max_results=4, places=self._places(records), llm=llm
+        )
+        assert result[0]["org_name"] == "Top Food Bank"
+
+    def test_a_chain_does_not_take_every_slot_in_its_category(self, llm):
+        # Four branches of one chain plus one independent, all same category.
+        records = [self._record("Chain Thrift", "thrift store charity", 500, f"c{i}") for i in range(4)]
+        records += [self._record("Indie Thrift", "thrift store charity", 100, "i0")]
+        result = find_opportunities(
+            39.29, -76.61, 5.0, max_results=2, places=self._places(records), llm=llm
+        )
+        assert {o["org_name"] for o in result} == {"Chain Thrift", "Indie Thrift"}
+
+    def test_separate_branches_are_still_kept_not_deduped(self, llm):
+        # Two real branches at different place_ids are two valid map pins.
+        records = [self._record("Chain Thrift", "thrift store charity", 500, f"c{i}") for i in range(3)]
+        result = find_opportunities(
+            39.29, -76.61, 5.0, max_results=10, places=self._places(records), llm=llm
+        )
+        assert len(result) == 3

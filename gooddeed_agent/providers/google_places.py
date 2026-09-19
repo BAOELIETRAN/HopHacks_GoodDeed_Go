@@ -94,15 +94,28 @@ class GooglePlacesProvider:
         if auth_error is not None and not any(ordered):
             raise auth_error
 
-        # Merge in query order, not completion order, so results are
-        # deterministic and the first (most relevant) query still wins.
+        # Merge round-robin across queries -- take each query's best result,
+        # then each query's second, and so on. Draining one query at a time
+        # would let the earliest queries fill `max_results` on their own, and
+        # every later domain (animals, veterans, arts) would be truncated away
+        # before the caller ever saw it.
+        #
+        # Iteration order still follows query order within each rank, so the
+        # result stays deterministic regardless of completion order.
+        normalized: list[list[dict[str, Any]]] = [
+            [r for r in (self._normalize(place, query) for place in (places or [])) if r]
+            for query, places in zip(queries, ordered)
+        ]
+
         seen: dict[str, dict[str, Any]] = {}
-        for query, places in zip(queries, ordered):
-            for place in places or []:
-                record = self._normalize(place, query)
-                if record is None:
-                    continue
-                seen.setdefault(record["place_id"], record)
+        for rank in range(max((len(group) for group in normalized), default=0)):
+            for group in normalized:
+                if rank < len(group):
+                    # First query to surface a place wins; it is the most
+                    # relevant one and drives the category mapping.
+                    seen.setdefault(group[rank]["place_id"], group[rank])
+            if len(seen) >= max_results:
+                break
 
         return list(seen.values())[:max_results]
 
