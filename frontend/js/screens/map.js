@@ -43,7 +43,12 @@ export async function renderMap(root) {
       <span><span class="legend-dot" style="background:var(--green)"></span>Verified nonprofit</span>
       <span><span class="legend-dot" style="background:var(--coral)"></span>Community need</span>
     </div>
-    <div class="pad" id="map-highlight" style="padding-top:12px"></div>`;
+    <div class="pad" id="map-highlight" style="padding-top:12px"></div>
+    <div class="pad" style="padding-top:0">
+      <button class="btn btn-ghost" id="all-quests">See all nearby quests</button>
+    </div>`;
+
+  root.querySelector("#all-quests").onclick = () => go("quests");
 
   const loc = await getLocation();
   if (loc.approximate) toast("Using a default location — allow location for real results");

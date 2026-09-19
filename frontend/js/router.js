@@ -27,8 +27,8 @@ export function go(name, params = {}) {
 export const currentRoute = () => current;
 
 export async function dispatch() {
-  const name = location.hash.replace(/^#/, "") || (state.token ? "map" : "welcome");
-  const route = routes.get(name) || routes.get("map");
+  const name = location.hash.replace(/^#/, "") || (state.token ? "today" : "welcome");
+  const route = routes.get(name) || routes.get("today");
 
   // Guard authenticated routes. Placeholder data still renders without a
   // backend, but a real session is required before we pretend to be signed in.

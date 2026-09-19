@@ -20,7 +20,9 @@ from .agent_client import agent_health
 from .config import ALLOWED_ORIGINS
 from .database import Base, engine
 from .migrate import ensure_schema, relax_password_columns
-from .routers import auth, checkins, friends, leaderboard, quests, reports, submissions
+from .routers import (
+    auth, checkins, friends, leaderboard, quests, reports, submissions, tasks,
+)
 
 Base.metadata.create_all(bind=engine)
 ensure_schema(engine)
@@ -65,6 +67,7 @@ async def no_cache_frontend(request, call_next):
 app.include_router(auth.router)
 app.include_router(quests.router)
 app.include_router(checkins.router)
+app.include_router(tasks.router)
 app.include_router(submissions.router)
 app.include_router(leaderboard.router)
 app.include_router(friends.router)

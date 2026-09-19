@@ -12,7 +12,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -173,6 +175,27 @@ class CheckIn(Base):
     # Set once the session has been turned into a scored submission, so one
     # shift cannot be claimed twice.
     submission_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+
+class MicroDeedDone(Base):
+    """A tap-to-complete everyday deed.
+
+    Kept separate from Submission: these carry no evidence and never touch
+    the AI, so mixing them into the submissions table would pollute the
+    verified record and the leaderboard's "only verified completions count"
+    rule. The unique constraint enforces once-per-task-per-day.
+    """
+
+    __tablename__ = "micro_deeds_done"
+    __table_args__ = (UniqueConstraint("user_id", "deed_id", "day", name="uq_micro_deed_per_day"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(32), ForeignKey("users.id"), index=True)
+    deed_id: Mapped[str] = mapped_column(String(40))
+    day: Mapped[str] = mapped_column(String(10), index=True)  # YYYY-MM-DD, local to the server
+    points: Mapped[int] = mapped_column(Integer, default=0)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
 class Opportunity(Base):

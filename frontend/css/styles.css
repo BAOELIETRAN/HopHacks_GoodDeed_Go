@@ -500,6 +500,9 @@ textarea { resize: vertical; min-height: 92px; line-height: 1.5; }
 }
 .list-row:last-child { border-bottom: 0; }
 
+.task-done { opacity: .55; }
+.task-done .thumb { filter: grayscale(.5); }
+
 /* Deed type picker: a grid of tappable tiles rather than a dropdown, so
    the eight kinds are all visible and the icons do the explaining. */
 .deed-grid {

@@ -114,6 +114,19 @@ export const api = {
   quests: (lat, lng, radius) =>
     withFallback(() => request(`/quests?${qs({ lat, lng, radius })}`), mock.MOCK_QUESTS),
 
+  // --- everyday deeds (tap to complete) -----------------------------------
+  todaysTasks: () =>
+    withFallback(() => request("/tasks/today"), {
+      day: new Date().toISOString().slice(0, 10), points_today: 0, daily_cap: 20,
+      deeds: [
+        { id: "three_pieces", text: "Pick up three pieces of litter that aren't yours", icon: "🧹", points: 4, theme: "place", done: false },
+        { id: "compliment", text: "Give someone a genuine compliment", icon: "💬", points: 3, theme: "people", done: false },
+        { id: "hold_door", text: "Hold a door for someone behind you", icon: "🚪", points: 2, theme: "people", done: false },
+      ],
+    }),
+  completeTask: (id, note) =>
+    request(`/tasks/${id}/complete`, { method: "POST", body: { note: note || null } }),
+
   // --- presence-verified sessions -----------------------------------------
   activeCheckin: () => request("/checkins/active"),
   startCheckin: (payload) => request("/checkins", { method: "POST", body: payload }),

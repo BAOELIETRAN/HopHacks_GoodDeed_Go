@@ -82,6 +82,40 @@ class OpportunityOut(BaseModel):
     distance_km: float
 
 
+# --- everyday deeds (tap to complete) -------------------------------------
+
+class MicroDeedOut(BaseModel):
+    id: str
+    text: str
+    icon: str
+    points: int
+    theme: str
+    done: bool = False
+
+
+class MicroDeedTodayOut(BaseModel):
+    day: str
+    points_today: int
+    daily_cap: int
+    deeds: list[MicroDeedOut]
+
+
+class TaskCompleteIn(BaseModel):
+    note: Optional[str] = Field(default=None, max_length=280)
+
+
+class MicroDeedDoneOut(BaseModel):
+    deed_id: str
+    points: int
+    capped: bool          # true when the daily ceiling trimmed the award
+    points_today: int
+    daily_cap: int
+    user_tier: str
+    user_tier_points: int
+    current_streak: int
+    is_personal_best: bool
+
+
 # --- check-ins (presence-verified sessions) -------------------------------
 
 class CheckInStart(BaseModel):

@@ -57,7 +57,7 @@ async function mountGoogleButton(mount) {
         try {
           const res = await api.google(credential);
           setSession(res.token, res.user);
-          go("map");
+          go("today");
         } catch (err) {
           toast(err instanceof ApiError ? err.message : "Google sign-in failed", true);
         }
@@ -154,7 +154,7 @@ function authForm(root, { title, fields, submitLabel, call, altLabel, altRoute }
     try {
       const res = await call(payload);
       setSession(res.token, res.user);
-      go("map");
+      go("today");
     } catch (err) {
       const msg = err instanceof ApiError
         ? err.message
