@@ -119,7 +119,8 @@ a visible "demo data" banner.
 
 | Variable | Needed for | Where |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Photo scoring, trust checks, report triage | console.anthropic.com |
+| `OPENAI_API_KEY` | Photo scoring, trust checks, report triage | platform.openai.com |
+| `ANTHROPIC_API_KEY` | The same, if you'd rather use Claude | console.anthropic.com |
 | `GOOGLE_MAPS_API_KEY` | Real nearby orgs | Google Cloud — **enable "Places API (New)"**, not the legacy one |
 | `DATABASE_URL` | Persistent accounts | Supabase → Database → URI → **Session pooler** |
 | `GOOGLE_CLIENT_ID` | "Sign in with Google" | Google Cloud → Credentials → OAuth client ID (Web) |
@@ -199,3 +200,33 @@ Worth knowing before the demo, in rough priority order:
    match the contract (0–99 / 100–499 / 500+). The backend implements the
    contract and the UI renders whatever the API returns, so nothing is broken
    — but somebody should decide which scale is wanted.
+
+
+## Switching the LLM provider
+
+The agent runs on either OpenAI or Claude. Everything above the provider
+seam -- rubrics, scoring, the four agent functions -- is identical; only
+`gooddeed_agent/providers/` differs.
+
+Set one key and you're done:
+
+```bash
+OPENAI_API_KEY=sk-...        # uses gpt-5 via the Responses API
+# or
+ANTHROPIC_API_KEY=sk-ant-... # uses claude-opus-5 via the Messages API
+```
+
+If both keys are set, OpenAI wins. Override with
+`GOODDEED_LLM_PROVIDER=anthropic`, and pick a specific model with
+`GOODDEED_MODEL`. A model belonging to the other provider is ignored with a
+warning rather than 404ing at request time.
+
+With **no** key for the selected provider the agent falls back to
+`MockLLMProvider`, which returns plausible stub scores. The app stays usable,
+but nothing is really being judged -- check the startup log line
+(`Using OpenAI (gpt-5)` / `Using MockLLMProvider ...`) if scores look odd.
+
+Both providers do vision, hosted web search and schema-constrained JSON in a
+single request, which is what the agent functions assume. The OpenAI side
+uses the Responses API because Chat Completions has no hosted web search, and
+`trust_check` and `verify_donation_link` depend on it.

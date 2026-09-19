@@ -18,6 +18,8 @@ from conftest import TINY_PNG
 def _settings(**overrides) -> Settings:
     base = dict(
         anthropic_api_key=None,
+        openai_api_key=None,
+        llm_provider="anthropic",
         google_maps_api_key=None,
         model="claude-opus-5",
         force_mocks=False,

@@ -29,6 +29,10 @@ services:
       - key: DATABASE_URL
         sync: false
 
+      # Set ONE of these two. OpenAI wins if both are present.
+      - key: OPENAI_API_KEY
+        sync: false
+
       - key: ANTHROPIC_API_KEY
         sync: false
 

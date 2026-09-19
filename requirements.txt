@@ -1,5 +1,6 @@
 # GoodDeed Go -- AI agent + backend + deployment
-anthropic>=0.115.0
+anthropic>=0.115.0        # used when GOODDEED_LLM_PROVIDER=anthropic
+openai>=1.60.0           # used when GOODDEED_LLM_PROVIDER=openai
 requests>=2.31.0
 python-dotenv>=1.0.0     # reads your .env file locally
 

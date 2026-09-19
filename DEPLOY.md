@@ -76,7 +76,7 @@ localhost, deploy, then come back and add the real origin.
    | Variable | Value |
    |---|---|
    | `DATABASE_URL` | The Supabase **session pooler** URI from step 1 |
-   | `ANTHROPIC_API_KEY` | Your Anthropic key |
+   | `OPENAI_API_KEY` | Your OpenAI key (or use `ANTHROPIC_API_KEY` instead — set one) |
    | `GOOGLE_MAPS_API_KEY` | Your Maps key, with **Places API (New)** enabled |
    | `GOOGLE_CLIENT_ID` | The OAuth client ID from step 2 |
    | `REFRESH_TOKEN` | Any long random string. Guards the daily-refresh endpoint; the blueprint generates one for you |

@@ -33,11 +33,26 @@ def get_places_provider(settings: Settings | None = None) -> PlacesProvider:
 
 
 def get_llm_provider(settings: Settings | None = None) -> LLMProvider:
-    """Real Claude provider, or the mock when no key is configured."""
+    """The configured LLM provider, or the mock when no key is set.
+
+    Which one is chosen is decided in :func:`load_settings` -- see
+    ``GOODDEED_LLM_PROVIDER`` -- so that selection lives in one place.
+    """
     settings = settings or load_settings()
     if settings.use_mock_llm:
-        log.info("Using MockLLMProvider (no ANTHROPIC_API_KEY, or mocks forced)")
+        log.info(
+            "Using MockLLMProvider (no API key for %s, or mocks forced)",
+            settings.llm_provider,
+        )
         return MockLLMProvider()
+
+    if settings.llm_provider == "openai":
+        from .openai_llm import OpenAILLMProvider
+
+        log.info("Using OpenAI (%s)", settings.model)
+        return OpenAILLMProvider(settings)
+
     from .claude_llm import ClaudeLLMProvider
 
+    log.info("Using Claude (%s)", settings.model)
     return ClaudeLLMProvider(settings)
