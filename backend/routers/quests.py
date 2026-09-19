@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import threading
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
@@ -8,10 +10,12 @@ from sqlalchemy.orm import Session as DbSession
 from .. import db_models as m
 from ..agent_client import estimate_points, find_opportunities
 from ..config import QUEST_CACHE_GRID, QUEST_CACHE_TTL_SECONDS, VERIFIED_LEGITIMACY_THRESHOLD
-from ..database import get_db
+from ..database import SessionLocal, get_db
 from ..deps import get_current_user
 from ..geo import haversine_km
 from ..schemas import OpportunityOut
+
+log = logging.getLogger("gooddeed.quests")
 
 router = APIRouter(tags=["quests"])
 
@@ -20,6 +24,51 @@ def _cache_key(lat: float, lng: float, radius_km: float) -> str:
     bucket_lat = round(lat / QUEST_CACHE_GRID) * QUEST_CACHE_GRID
     bucket_lng = round(lng / QUEST_CACHE_GRID) * QUEST_CACHE_GRID
     return f"{bucket_lat:.3f}:{bucket_lng:.3f}:{radius_km:g}"
+
+
+# One refresh per cache key at a time. Without this, a burst of map loads on
+# an expired key would each kick off its own Places fan-out.
+_refreshing: set[str] = set()
+_refresh_lock = threading.Lock()
+
+
+def _refresh_in_background(key: str, lat: float, lng: float, radius: float) -> None:
+    with _refresh_lock:
+        if key in _refreshing:
+            return
+        _refreshing.add(key)
+
+    def run() -> None:
+        # Its own session: the request's session closes when the response is
+        # returned, which is the point of doing this off the request path.
+        db = SessionLocal()
+        try:
+            opportunities = find_opportunities(lat, lng, radius)
+            if not opportunities:
+                return  # keep the stale rows rather than emptying the map
+            _replace_cache(db, key, opportunities)
+            db.commit()
+        except Exception:
+            log.exception("Background quest refresh failed for %s", key)
+            db.rollback()
+        finally:
+            db.close()
+            with _refresh_lock:
+                _refreshing.discard(key)
+
+    threading.Thread(target=run, name=f"quest-refresh-{key}", daemon=True).start()
+
+
+def _replace_cache(db: DbSession, key: str, opportunities: list[dict]) -> None:
+    db.query(m.Opportunity).filter(m.Opportunity.cache_key == key).delete()
+    db.add_all([
+        m.Opportunity(
+            org_name=o["org_name"], address=o["address"], lat=o["lat"], lng=o["lng"],
+            category=o["category"], legitimacy_score=o["legitimacy_score"],
+            quest_type=o["quest_type"], cache_key=key,
+        )
+        for o in opportunities
+    ])
 
 
 @router.get("/quests", response_model=list[OpportunityOut])
@@ -33,12 +82,18 @@ def get_quests(
     key = _cache_key(lat, lng, radius)
     fresh_cutoff = datetime.now(timezone.utc) - timedelta(seconds=QUEST_CACHE_TTL_SECONDS)
 
-    cached = (
-        db.query(m.Opportunity)
-        .filter(m.Opportunity.cache_key == key, m.Opportunity.cached_at >= fresh_cutoff)
-        .all()
-    )
+    cached = db.query(m.Opportunity).filter(m.Opportunity.cache_key == key).all()
     if cached:
+        newest = max((r.cached_at for r in cached if r.cached_at), default=None)
+        if newest is not None and newest.tzinfo is None:
+            newest = newest.replace(tzinfo=timezone.utc)
+
+        if newest is not None and newest < fresh_cutoff:
+            # Stale-while-revalidate: hand back what we have and refresh off
+            # the request path. Waiting four seconds to redraw a map that is
+            # already correct is the worse trade -- the data is nonprofits,
+            # which do not move.
+            _refresh_in_background(key, lat, lng, radius)
         return [_to_out(row, lat, lng) for row in cached]
 
     opportunities = find_opportunities(lat, lng, radius)

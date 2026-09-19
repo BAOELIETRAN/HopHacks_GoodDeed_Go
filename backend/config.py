@@ -38,13 +38,19 @@ ALLOWED_ORIGINS = [
 # ID-token flow). Leave unset to disable Google sign-in entirely.
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
 
-# How long a cached /quests result for a given (lat, lng, radius) bucket stays
-# fresh before we call the agent again. "Caches briefly" per the spec.
-QUEST_CACHE_TTL_SECONDS = 5 * 60
+# How long a cached /quests result stays fresh. Nonprofits do not move and
+# rarely close, so a five-minute TTL meant almost every map load paid the
+# full four-second Places fan-out for data that had not changed. Expired
+# entries are still served immediately and refreshed in the background
+# (see routers/quests.py), so this is an upper bound on staleness, not on
+# response time.
+QUEST_CACHE_TTL_SECONDS = 6 * 60 * 60
 
-# Grid size used to bucket lat/lng into a cache key, in degrees. ~0.01 deg is
-# roughly 1.1km, tight enough that nearby users still share a cache entry.
-QUEST_CACHE_GRID = 0.01
+# Grid size used to bucket lat/lng into a cache key, in degrees. At 0.01
+# (~1.1km) walking two blocks produced a fresh cache key and another cold
+# load. 0.02 (~2.2km) against an 8km search radius keeps results well
+# centred while letting a neighbourhood share one entry.
+QUEST_CACHE_GRID = 0.02
 
 # How long a claim on a community report holds before it is released back
 # to the feed. Someone who claims a need and never follows through would
