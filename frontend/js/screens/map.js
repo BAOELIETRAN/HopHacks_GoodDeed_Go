@@ -2,7 +2,7 @@
 
 import { api, getLocation, state } from "../api.js";
 import { DEFAULT_RADIUS_KM } from "../config.js";
-import { distanceLabel, esc, h, icon, statusbar, toast } from "../ui.js";
+import { directionsUrl, distanceLabel, esc, h, icon, statusbar, toast } from "../ui.js";
 import { go } from "../router.js";
 
 let mapInstance = null;
@@ -69,24 +69,54 @@ function drawPins(quests, reports) {
 
   for (const q of quests.slice(0, 12)) {
     const label = `${icon(q.category)} ${esc(q.org_name.split(/[-–|]/)[0].trim())} · +${q.estimated_points ?? ""}`;
-    L.marker([q.lat, q.lng], {
+    const marker = L.marker([q.lat, q.lng], {
       icon: L.divIcon({ className: "", html: `<div class="map-pin">${label}</div>`, iconSize: null }),
-    })
-      .addTo(mapInstance)
-      .on("click", () => go("quest", { quest: q }));
+    }).addTo(mapInstance);
+
+    // Tapping a pin opens a small sheet rather than jumping straight to the
+    // detail screen: from the map, "how do I get there" is usually the
+    // question, and losing your map position to find out is annoying.
+    marker.bindPopup(
+      `<div class="map-pop">
+         <strong>${esc(q.org_name)}</strong>
+         <div class="tiny">${esc(q.address || "")}</div>
+         <div class="map-pop-actions">
+           <a href="${directionsUrl(q.lat, q.lng)}" target="_blank" rel="noopener noreferrer">🧭 Directions</a>
+           <button data-quest>View quest</button>
+         </div>
+       </div>`,
+      { closeButton: false, className: "glass-popup", offset: [0, -6] },
+    );
+    marker.on("popupopen", (e) => {
+      e.popup.getElement()?.querySelector("[data-quest]")
+        ?.addEventListener("click", () => go("quest", { quest: q }));
+    });
   }
 
   for (const r of reports.slice(0, 10)) {
     const text = esc((r.description || "Community need").slice(0, 26));
-    L.marker([r.lat, r.lng], {
+    const marker = L.marker([r.lat, r.lng], {
       icon: L.divIcon({
         className: "",
         html: `<div class="map-pin report">❤ ${text} · +${r.estimated_points ?? 20}</div>`,
         iconSize: null,
       }),
-    })
-      .addTo(mapInstance)
-      .on("click", () => go("community"));
+    }).addTo(mapInstance);
+    marker.bindPopup(
+      `<div class="map-pop">
+         <strong>${esc(r.description || "Community need")}</strong>
+         <div class="tiny">Posted by ${esc(r.reported_by_name || "a neighbour")}</div>
+         <div class="map-pop-actions">
+           <a href="${directionsUrl(r.lat, r.lng)}" target="_blank" rel="noopener noreferrer">🧭 Directions</a>
+           <button data-feed>Open feed</button>
+         </div>
+       </div>`,
+      { closeButton: false, className: "glass-popup", offset: [0, -6] },
+    );
+    marker.on("popupopen", (e) => {
+      e.popup.getElement()?.querySelector("[data-feed]")
+        ?.addEventListener("click", () => go("community"));
+    });
   }
 }
 
@@ -111,11 +141,20 @@ function renderHighlight(container, quests) {
           <p class="tiny truncate">${esc(q.address)} · ${distanceLabel(q.distance_km)}</p>
         </div>
         <div style="text-align:right">
-          <div style="font-weight:800;color:var(--green-press)">+${q.estimated_points ?? 0}</div>
-          <div style="font-size:20px;color:var(--ink-faint);line-height:1">›</div>
+          <div style="font-weight:800;color:var(--green)">+${q.estimated_points ?? 0}</div>
+          <div class="tiny">pts</div>
         </div>
       </div>
+      <div class="row-between" style="margin-top:12px;gap:10px">
+        <a class="btn-directions" data-directions target="_blank" rel="noopener noreferrer">🧭 Directions</a>
+        <button class="btn btn-primary btn-sm" data-open>View quest</button>
+      </div>
     </div>`);
+
+  const link = card.querySelector("[data-directions]");
+  link.href = directionsUrl(q.lat, q.lng);
+  link.onclick = (e) => e.stopPropagation();
+  card.querySelector("[data-open]").onclick = (e) => { e.stopPropagation(); go("quest", { quest: q }); };
   card.onclick = () => go("quest", { quest: q });
   container.replaceChildren(card);
 }

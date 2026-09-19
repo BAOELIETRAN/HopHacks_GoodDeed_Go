@@ -2,7 +2,9 @@
 
 import { api, getLocation } from "../api.js";
 import { DEFAULT_RADIUS_KM } from "../config.js";
-import { distanceLabel, empty, esc, h, icon, prettyCategory, spinner, statusbar } from "../ui.js";
+import {
+  directionsUrl, distanceLabel, empty, esc, h, icon, prettyCategory, spinner, statusbar,
+} from "../ui.js";
 import { go } from "../router.js";
 
 let filter = "all";
@@ -22,7 +24,7 @@ export async function renderQuests(root) {
         <button data-f="monthly" aria-selected="${filter === "monthly"}">Monthly</button>
       </div>
     </div>
-    <div class="pad" id="list" style="padding-top:8px">${spinner()}</div>`;
+    <div class="pad" style="padding-top:8px"><div id="list" class="grid-2">${spinner()}</div></div>`;
 
   const list = root.querySelector("#list");
   const loc = await getLocation();
@@ -66,11 +68,25 @@ function questCard(q) {
           <p class="tiny truncate" style="opacity:.7">${esc(q.address || "")}</p>
         </div>
         <div style="text-align:right">
-          <div style="font-weight:800;color:var(--green-press)">+${q.estimated_points ?? 0}</div>
+          <div style="font-weight:800;color:var(--green)">+${q.estimated_points ?? 0}</div>
           <div class="tiny">pts</div>
         </div>
       </div>
+      <div class="row-between" style="margin-top:12px;gap:10px">
+        <a class="btn-directions" data-directions target="_blank" rel="noopener noreferrer">🧭 Directions</a>
+        <button class="btn btn-primary btn-sm" data-open>View quest</button>
+      </div>
     </div>`);
+
+  const link = card.querySelector("[data-directions]");
+  link.href = directionsUrl(q.lat, q.lng);
+  // The whole card navigates, so the link must not also trigger that.
+  link.onclick = (e) => e.stopPropagation();
+
+  card.querySelector("[data-open]").onclick = (e) => {
+    e.stopPropagation();
+    go("quest", { quest: q });
+  };
   card.onclick = () => go("quest", { quest: q });
   return card;
 }

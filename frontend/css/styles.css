@@ -93,6 +93,8 @@ body {
   width: 100%;
   max-width: var(--phone-w);
   min-height: 100vh;
+  /* Widened to a real desktop layout in the media query at the end of this
+     file; the narrow column remains the phone/base case. */
   position: relative;
   display: flex;
   flex-direction: column;
@@ -377,6 +379,28 @@ textarea { resize: vertical; min-height: 92px; line-height: 1.5; }
 }
 .legend-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 5px; }
 
+/* Leaflet popups, restyled as glass. */
+.glass-popup .leaflet-popup-content-wrapper {
+  background: var(--glass-dark); color: var(--ink);
+  border: 1px solid var(--glass-border); border-radius: var(--r-md);
+  box-shadow: var(--glass-shadow-lg);
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+}
+.glass-popup .leaflet-popup-content { margin: 13px 15px; font-family: inherit; }
+.glass-popup .leaflet-popup-tip { background: var(--glass-dark); border: 1px solid var(--glass-border); }
+.map-pop strong { display: block; font-size: 15px; margin-bottom: 2px; }
+.map-pop-actions { display: flex; gap: 8px; margin-top: 11px; }
+.map-pop-actions a, .map-pop-actions button {
+  flex: 1; text-align: center; font-family: inherit; font-weight: 800; font-size: 13px;
+  padding: 9px 12px; border-radius: var(--r-pill); cursor: pointer; text-decoration: none;
+  border: 1px solid var(--glass-border); background: var(--glass); color: var(--ink);
+  white-space: nowrap;
+}
+.map-pop-actions button {
+  background: linear-gradient(180deg, var(--green) 0%, var(--green-press) 100%);
+  color: #06281a; border-color: transparent;
+}
+
 .leaflet-control-attribution {
   font-size: 9px !important; background: rgba(6,24,20,.6) !important;
   color: var(--ink-faint) !important; padding: 2px 6px !important;
@@ -516,4 +540,97 @@ textarea { resize: vertical; min-height: 92px; line-height: 1.5; }
 /* Respect a user's reduced-motion setting: the transforms are decorative. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+
+/* =======================================================================
+   Desktop
+   The app was phone-first. On a laptop a 430px column stranded in a dark
+   field looks like a mistake, so from 900px it becomes a proper two-column
+   web app: a persistent left sidebar replaces the bottom tab bar, and
+   content gets a comfortable reading measure.
+   ======================================================================= */
+@media (min-width: 900px) {
+  :root { --sidebar-w: 248px; --content-max: 1180px; }
+
+  body { align-items: stretch; }
+
+  #app {
+    max-width: none;
+    width: 100%;
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: var(--sidebar-w) 1fr;
+    grid-template-areas: "nav main";
+  }
+
+  .screen {
+    grid-area: main;
+    padding-bottom: var(--s8);
+    max-height: 100vh;
+  }
+
+  /* Centre the content and let it breathe, without stretching cards to
+     absurd widths on an ultrawide display. */
+  .screen > .pad,
+  .screen > .hero,
+  .screen > .appbar,
+  .screen > .statusbar {
+    width: 100%;
+    max-width: var(--content-max);
+    margin-inline: auto;
+  }
+  .screen > .pad { padding-inline: var(--s7); }
+  .screen > .hero { padding-inline: var(--s7); }
+
+  /* The fake phone status bar is a mobile affectation; hide it on desktop. */
+  .statusbar { display: none; }
+
+  /* Bottom tab bar becomes a sidebar. */
+  .bottom-nav {
+    grid-area: nav;
+    position: sticky; top: 0; left: auto; right: auto; bottom: auto;
+    height: 100vh; width: var(--sidebar-w);
+    flex-direction: column; justify-content: flex-start;
+    gap: 6px; padding: var(--s6) var(--s3);
+    border-top: 0; border-right: 1px solid var(--glass-border);
+    box-shadow: 8px 0 32px rgba(0,0,0,.28), inset -1px 0 0 rgba(255,255,255,.12);
+  }
+  .bottom-nav::before {
+    content: "✦ GoodDeed Go";
+    display: block; font-weight: 800; font-size: 17px; letter-spacing: -.3px;
+    color: var(--ink); padding: 0 var(--s3) var(--s5);
+  }
+  .bottom-nav button {
+    flex: 0 0 auto; flex-direction: row; justify-content: flex-start;
+    gap: var(--s3); width: 100%; padding: 13px var(--s3);
+    border-radius: var(--r-md); font-size: 15px;
+  }
+  .bottom-nav button .ico { font-size: 18px; width: 22px; text-align: center; }
+  .bottom-nav button:hover { background: var(--glass-weak); color: var(--ink); }
+  .bottom-nav button[aria-current="page"] {
+    background: var(--glass-strong); color: var(--green);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.22);
+  }
+
+  /* Multi-column content where a single stack would waste the width. */
+  .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); }
+  .grid-2 .card + .card { margin-top: 0; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); }
+  .grid-3 .card + .card { margin-top: 0; }
+
+  #map { min-height: 460px; border-radius: var(--r-lg); overflow: hidden;
+         border: 1px solid var(--glass-border); }
+  .screen > #map { max-width: var(--content-max); margin-inline: auto; width: calc(100% - var(--s7) * 2); }
+
+  .map-legend { left: 50%; transform: translateX(-50%); bottom: var(--s6); }
+
+  .toast { bottom: var(--s6); left: auto; right: var(--s6); transform: none; }
+
+  h1 { font-size: 40px; }
+  h2 { font-size: 26px; }
+}
+
+@media (min-width: 1280px) {
+  .grid-2 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

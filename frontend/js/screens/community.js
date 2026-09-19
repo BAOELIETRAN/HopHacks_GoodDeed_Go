@@ -28,7 +28,7 @@ export async function renderCommunity(root) {
         <button data-v="done" aria-selected="${tab === "done"}">Completed</button>
       </div>
     </div>
-    <div class="pad" id="feed" style="padding-top:4px">${spinner()}</div>
+    <div class="pad" style="padding-top:4px"><div id="feed" class="grid-2">${spinner()}</div></div>
     <div class="pad" style="padding-top:0">
       <button class="btn btn-dark" id="report-btn">Report a community need</button>
     </div>`;

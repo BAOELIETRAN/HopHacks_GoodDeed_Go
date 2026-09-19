@@ -1,6 +1,6 @@
 /* Profile: tier progress, streak, badges. */
 
-import { api, clearSession, state } from "../api.js";
+import { api, ApiError, clearSession, state } from "../api.js";
 import { esc, h, statusbar, tierBadge, toast } from "../ui.js";
 import { go } from "../router.js";
 
@@ -68,30 +68,96 @@ export async function renderProfile(root) {
         </div>
       </div>
 
+      <div class="section-title"><h3>Your team</h3></div>
       <div class="card">
-        <div class="row-between">
-          <div>
-            <strong>Invite friends</strong>
-            <p class="tiny">Share a code to compare on the Friends board.</p>
-          </div>
-          <button class="btn btn-primary btn-sm" data-invite>Get code</button>
-        </div>
+        <p class="muted" style="font-size:14px">
+          Everyone on a team shows up on each other's Friends leaderboard.
+          One person shares a code, everyone else enters it.
+        </p>
+
+        <hr class="divider">
+
+        <strong style="font-size:14px">Start a team</strong>
+        <p class="tiny" style="margin:4px 0 10px">Generates a code for others to join with.</p>
+        <button class="btn btn-ghost" data-invite>Get my invite code</button>
         <div id="invite-out"></div>
+
+        <hr class="divider">
+
+        <strong style="font-size:14px">Join a team</strong>
+        <p class="tiny" style="margin:4px 0 10px">Paste the code a teammate sent you.</p>
+        <label class="field">
+          <input type="text" id="join-code" placeholder="e.g. 7QK4M2"
+                 autocapitalize="characters" autocomplete="off" maxlength="16"
+                 style="text-transform:uppercase;letter-spacing:.14em;font-weight:800;text-align:center">
+        </label>
+        <p class="err" id="join-err" hidden></p>
+        <button class="btn btn-primary" id="join-btn" style="margin-top:10px">Join team</button>
+        <div id="join-out"></div>
       </div>
 
       <button class="btn btn-ghost" data-signout>Sign out</button>
     </div>`;
 
-  root.querySelector("[data-invite]").onclick = async () => {
+  const inviteBtn = root.querySelector("[data-invite]");
+  inviteBtn.onclick = async () => {
+    inviteBtn.disabled = true;
     try {
       const { invite_code } = await api.invite();
-      root.querySelector("#invite-out").replaceChildren(
+      const box = h(`
+        <div class="panel panel-mint" style="margin-top:12px;text-align:center">
+          <div class="tiny">Share this code</div>
+          <div style="font-size:28px;font-weight:800;letter-spacing:.18em;margin:6px 0">${esc(invite_code)}</div>
+          <button class="btn btn-ghost btn-sm" data-copy>Copy code</button>
+        </div>`);
+      box.querySelector("[data-copy]").onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(invite_code);
+          toast("Code copied");
+        } catch {
+          // Clipboard needs a secure context; selecting the text still works.
+          toast("Copy it manually: " + invite_code);
+        }
+      };
+      root.querySelector("#invite-out").replaceChildren(box);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "Couldn't get a code", true);
+    } finally {
+      inviteBtn.disabled = false;
+    }
+  };
+
+  const joinBtn = root.querySelector("#join-btn");
+  const joinErr = root.querySelector("#join-err");
+  const joinInput = root.querySelector("#join-code");
+
+  joinInput.addEventListener("keydown", (e) => { if (e.key === "Enter") joinBtn.click(); });
+
+  joinBtn.onclick = async () => {
+    const code = joinInput.value.trim().toUpperCase();
+    if (!code) {
+      joinErr.textContent = "Enter the code a teammate sent you.";
+      joinErr.hidden = false;
+      return;
+    }
+    joinErr.hidden = true;
+    joinBtn.disabled = true;
+    joinBtn.textContent = "Joining…";
+    try {
+      const group = await api.join(code);
+      root.querySelector("#join-out").replaceChildren(
         h(`<div class="panel panel-mint" style="margin-top:12px;text-align:center">
-             <div class="tiny">Your invite code</div>
-             <div style="font-size:26px;font-weight:800;letter-spacing:.14em">${esc(invite_code)}</div>
+             <strong>You're on the team</strong>
+             <p class="tiny" style="margin-top:4px">${group.member_count} member${group.member_count === 1 ? "" : "s"} · check the Friends leaderboard</p>
            </div>`));
-    } catch {
-      toast("Couldn't get a code — is the backend running?", true);
+      joinInput.value = "";
+      toast("Joined the team");
+    } catch (err) {
+      joinErr.textContent = err instanceof ApiError ? err.message : "Couldn't join with that code";
+      joinErr.hidden = false;
+    } finally {
+      joinBtn.disabled = false;
+      joinBtn.textContent = "Join team";
     }
   };
 
