@@ -14,6 +14,7 @@ import { api, ApiError, setSession, state } from "../api.js";
 import { esc, h, spinner, statusbar, toast } from "../ui.js";
 import { go } from "../router.js";
 import { quoteOfTheDay } from "../quotes.js";
+import { celebrate, companionSvg, nextStage, stageFor, stageProgress } from "../companion.js";
 
 export async function renderToday(root) {
   root.innerHTML = `
@@ -25,6 +26,7 @@ export async function renderToday(root) {
         Quick, everyday good. No photo, no check-in — just do it and tap.
       </p>
     </div>
+    <div class="pad" style="padding-top:0" id="companion-slot"></div>
     ${quoteCard()}
     <div class="pad" id="tasks" style="padding-top:0">${spinner()}</div>
     <div class="pad" style="padding-top:0">
@@ -38,6 +40,30 @@ export async function renderToday(root) {
   root.querySelector("#log-deed").onclick = () => go("submit", {});
 
   const list = root.querySelector("#tasks");
+  const companionSlot = root.querySelector("#companion-slot");
+
+  const paintCompanion = () => {
+    const points = state.user?.tier_points ?? 0;
+    const stage = stageFor(points);
+    const next = nextStage(points);
+    // A broken streak makes it sleepy -- the nudge is the point.
+    const mood = (state.user?.current_streak ?? 0) > 0 ? "idle" : "sleepy";
+    companionSlot.innerHTML = `
+      <div class="card companion-card">
+        ${companionSvg(points, { mood, size: 168 })}
+        <div class="companion-name">${stage.name}
+          <span class="chip chip-quiet" style="font-size:11px">${points} pts</span>
+        </div>
+        <p class="companion-blurb">${esc(stage.blurb)}</p>
+        ${next ? `
+          <div class="bar on-light" style="margin-top:12px">
+            <i style="width:${Math.round(stageProgress(points) * 100)}%"></i>
+          </div>
+          <p class="companion-next">${next.at - points} pts to ${next.name}</p>`
+          : `<p class="companion-next">Fully grown. Nothing left to prove.</p>`}
+      </div>`;
+  };
+  paintCompanion();
 
   const load = async () => {
     const data = await api.todaysTasks();
@@ -51,14 +77,14 @@ export async function renderToday(root) {
            </div>
            <div class="bar" style="margin-top:10px"><i style="width:${pct}%"></i></div>
          </div>`),
-      ...data.deeds.map((d) => taskCard(d, data, load)),
+      ...data.deeds.map((d) => taskCard(d, data, load, { paintCompanion, companionSlot })),
     );
   };
 
   await load();
 }
 
-function taskCard(deed, data, reload) {
+function taskCard(deed, data, reload, companion) {
   const card = h(`
     <div class="card ${deed.done ? "task-done" : "tappable"}">
       <div class="row">
@@ -89,10 +115,20 @@ function taskCard(deed, data, reload) {
             current_streak: res.current_streak,
           });
         }
+        // Did that tip it over an evolution threshold?
+        const before = stageFor(res.user_tier_points - res.points).key;
+        const after = stageFor(res.user_tier_points).key;
+        const evolved = before !== after;
+
+        companion.paintCompanion();
+        celebrate(companion.companionSlot.querySelector(".companion"), { evolved });
+
         toast(
-          res.capped
-            ? `Logged. You've hit today's ${res.daily_cap}-point cap — it still counts.`
-            : `Nice one. +${res.points} pts`,
+          evolved
+            ? `${stageFor(res.user_tier_points).name}! Your companion evolved.`
+            : res.capped
+              ? `Logged. You've hit today's ${res.daily_cap}-point cap — it still counts.`
+              : `Nice one. +${res.points} pts`,
         );
         reload();
       } catch (err) {

@@ -500,6 +500,136 @@ textarea { resize: vertical; min-height: 92px; line-height: 1.5; }
 }
 .list-row:last-child { border-bottom: 0; }
 
+/* ---------- Companion ----------
+   Idle motion is slow and small on purpose: a creature that jitters
+   constantly reads as a loading spinner, not a pet. The big movement is
+   saved for the moments that earn it -- a completed deed, an evolution. */
+
+.companion { display: block; overflow: visible; }
+
+/* Breathing. ~4s, barely perceptible, enough to look alive. */
+.cmp-bob { transform-origin: 100px 168px; animation: cmp-breathe 4s ease-in-out infinite; }
+@keyframes cmp-breathe {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  50%      { transform: translateY(-5px) scale(1.015, .985); }
+}
+
+/* Shadow shrinks as it rises, which is what sells the float. */
+.cmp-shadow { animation: cmp-shadow 4s ease-in-out infinite; transform-origin: 100px 176px; }
+@keyframes cmp-shadow {
+  0%, 100% { transform: scaleX(1);   opacity: .28; }
+  50%      { transform: scaleX(.86); opacity: .18; }
+}
+
+/* Blink: a long gap with two quick closes, like a real one. */
+.cmp-eye { animation: cmp-blink 6.5s infinite; transform-origin: center; }
+@keyframes cmp-blink {
+  0%, 92%, 96%, 100% { transform: scaleY(1); }
+  94%                { transform: scaleY(.08); }
+}
+
+.cmp-leaf   { transform-origin: 100px 64px; animation: cmp-sway 5s ease-in-out infinite; }
+.cmp-flower { transform-origin: 128px 26px; animation: cmp-sway 5s ease-in-out infinite .4s; }
+@keyframes cmp-sway {
+  0%, 100% { transform: rotate(-4deg); }
+  50%      { transform: rotate(4deg); }
+}
+
+.cmp-crown { transform-origin: 100px 56px; animation: cmp-shine 3.5s ease-in-out infinite; }
+@keyframes cmp-shine { 0%, 100% { opacity: .85; } 50% { opacity: 1; } }
+
+.cmp-aura { animation: cmp-pulse 3.2s ease-in-out infinite; transform-origin: 100px 108px; }
+@keyframes cmp-pulse {
+  0%, 100% { transform: scale(1);    opacity: .18; }
+  50%      { transform: scale(1.09); opacity: .32; }
+}
+
+/* The egg rocks instead of breathing -- something inside wants out. */
+.stage-egg .cmp-bob { animation: cmp-rock 3.4s ease-in-out infinite; transform-origin: 100px 172px; }
+@keyframes cmp-rock {
+  0%, 70%, 100% { transform: rotate(0deg); }
+  78%           { transform: rotate(-5deg); }
+  86%           { transform: rotate(4deg); }
+  92%           { transform: rotate(-2deg); }
+}
+
+/* Sleepy: slower, slumped, no sparkle. */
+.mood-sleepy .cmp-bob { animation-duration: 6.5s; opacity: .8; }
+
+/* Sparkles are hidden until something good happens. */
+.cmp-sparks { opacity: 0; }
+.cmp-spark  { transform-origin: center; opacity: 0; }
+
+/* One-off: a deed was logged. */
+.companion.is-happy .cmp-bob { animation: cmp-jump .9s cubic-bezier(.3, 1.4, .5, 1); }
+@keyframes cmp-jump {
+  0%       { transform: translateY(0) scale(1, 1); }
+  25%      { transform: translateY(-26px) scale(.94, 1.08); }
+  55%      { transform: translateY(0) scale(1.08, .92); }
+  75%      { transform: translateY(-8px) scale(.98, 1.02); }
+  100%     { transform: translateY(0) scale(1, 1); }
+}
+.companion.is-happy .cmp-sparks { opacity: 1; }
+.companion.is-happy .cmp-spark { animation: cmp-spark .9s ease-out; }
+.companion.is-happy .s1 { animation-delay: .06s; }
+.companion.is-happy .s2 { animation-delay: .12s; }
+.companion.is-happy .s3 { animation-delay: .18s; }
+.companion.is-happy .s4 { animation-delay: .24s; }
+@keyframes cmp-spark {
+  0%   { opacity: 0; transform: scale(.2) rotate(0deg); }
+  40%  { opacity: 1; transform: scale(1.25) rotate(60deg); }
+  100% { opacity: 0; transform: scale(.5) rotate(140deg); }
+}
+
+/* One-off: it evolved. Longer, with a flash and a spin. */
+.companion.is-evolving .cmp-bob { animation: cmp-evolve 2.2s cubic-bezier(.3, 1.2, .4, 1); }
+@keyframes cmp-evolve {
+  0%   { transform: scale(1)    rotate(0deg);   filter: brightness(1); }
+  18%  { transform: scale(.82)  rotate(-8deg);  filter: brightness(1.1); }
+  38%  { transform: scale(1.22) rotate(10deg);  filter: brightness(2.4); }
+  52%  { transform: scale(1.05) rotate(-4deg);  filter: brightness(1.7); }
+  70%  { transform: scale(1.12) rotate(2deg);   filter: brightness(1.15); }
+  100% { transform: scale(1)    rotate(0deg);   filter: brightness(1); }
+}
+.companion.is-evolving .cmp-sparks { opacity: 1; }
+.companion.is-evolving .cmp-spark { animation: cmp-spark 1.5s ease-out; }
+.companion.is-evolving .s1 { animation-delay: .15s; }
+.companion.is-evolving .s2 { animation-delay: .3s; }
+.companion.is-evolving .s3 { animation-delay: .45s; }
+.companion.is-evolving .s4 { animation-delay: .6s; }
+
+.companion-card { text-align: center; }
+
+/* The full ladder, so the next evolution is always visible and the ones
+   already passed feel earned rather than forgotten. */
+.stage-track {
+  display: flex; justify-content: space-between; gap: 2px;
+  margin-top: var(--s4); padding-top: var(--s3);
+  border-top: 1px solid var(--glass-border);
+}
+.stage-dot {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  font-size: 13px; color: var(--ink-faint); opacity: .5;
+}
+.stage-dot.reached { opacity: 1; color: var(--green); }
+.stage-dot em { font-style: normal; font-size: 9.5px; font-weight: 800; letter-spacing: .02em; }
+.companion-name {
+  font-weight: 800; font-size: 15px; letter-spacing: -.2px;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+}
+.companion-blurb { font-size: 13px; color: var(--ink-soft); margin-top: 3px; line-height: 1.45; }
+.companion-next { font-size: 11.5px; color: var(--ink-faint); margin-top: 10px; font-weight: 700; }
+
+/* Every animation above is decoration. Under reduced-motion the creature
+   still renders at the right stage -- it simply holds still. */
+@media (prefers-reduced-motion: reduce) {
+  .cmp-bob, .cmp-shadow, .cmp-eye, .cmp-leaf, .cmp-flower,
+  .cmp-crown, .cmp-aura, .cmp-spark,
+  .companion.is-happy .cmp-bob, .companion.is-evolving .cmp-bob {
+    animation: none !important;
+  }
+}
+
 .task-done { opacity: .55; }
 .task-done .thumb { filter: grayscale(.5); }
 

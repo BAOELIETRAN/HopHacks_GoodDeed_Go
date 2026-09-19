@@ -3,6 +3,7 @@
 import { api, ApiError, clearSession, state } from "../api.js";
 import { esc, h, statusbar, tierBadge, toast } from "../ui.js";
 import { go } from "../router.js";
+import { companionSvg, nextStage, stageFor, stageProgress, STAGES } from "../companion.js";
 
 const ALL_BADGES = [
   { code: "first_shift", label: "First Shift", emoji: "🥕" },
@@ -54,6 +55,32 @@ export async function renderProfile(root) {
         <div class="bar" style="margin-top:12px"><i style="width:${pct}%"></i></div>
         <div class="row-between tiny" style="margin-top:8px">
           <span>Bronze 0</span><span>Silver 100</span><span>Gold 500</span>
+        </div>
+      </div>
+
+      <div class="section-title"><h3>Your companion</h3></div>
+      <div class="card companion-card">
+        ${companionSvg(user.tier_points ?? 0, {
+          mood: (user.current_streak ?? 0) > 0 ? "idle" : "sleepy", size: 170,
+        })}
+        <div class="companion-name">${esc(stageFor(user.tier_points ?? 0).name)}</div>
+        <p class="companion-blurb">${esc(stageFor(user.tier_points ?? 0).blurb)}</p>
+        ${nextStage(user.tier_points ?? 0) ? `
+          <div class="bar on-light" style="margin-top:12px">
+            <i style="width:${Math.round(stageProgress(user.tier_points ?? 0) * 100)}%"></i>
+          </div>
+          <p class="companion-next">
+            ${nextStage(user.tier_points ?? 0).at - (user.tier_points ?? 0)} pts to
+            ${esc(nextStage(user.tier_points ?? 0).name)}
+          </p>` : `<p class="companion-next">Fully grown.</p>`}
+
+        <div class="stage-track">
+          ${STAGES.map((st) => `
+            <div class="stage-dot ${(user.tier_points ?? 0) >= st.at ? "reached" : ""}"
+                 title="${esc(st.name)} at ${st.at} pts">
+              <span>${(user.tier_points ?? 0) >= st.at ? "●" : "○"}</span>
+              <em>${esc(st.name)}</em>
+            </div>`).join("")}
         </div>
       </div>
 

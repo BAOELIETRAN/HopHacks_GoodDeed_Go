@@ -7,6 +7,7 @@ import {
   statusbar, toast,
 } from "../ui.js";
 import { go } from "../router.js";
+import { celebrate, companionSvg, stageFor } from "../companion.js";
 
 
 /** Straight-line metres between a fix and a quest. Mirrors the server's
@@ -370,7 +371,11 @@ export function renderResult(root, { result }) {
   root.innerHTML = `
     ${statusbar()}
     <div class="pad stack center" style="padding-top:28px">
-      <div class="mascot"><div class="eyes"><i class="eye"></i><i class="eye"></i></div></div>
+      <div id="result-companion">
+        ${companionSvg(result.user_tier_points ?? 0, {
+          mood: awarded ? "happy" : "sleepy", size: 150,
+        })}
+      </div>
       <div class="eyebrow">AI review complete</div>
       <h1>${awarded ? "Good deed verified!" : "We couldn't verify this"}</h1>
       <p class="muted">${esc(result.rationale || "")}</p>
@@ -407,6 +412,12 @@ export function renderResult(root, { result }) {
       <button class="btn btn-ghost" data-map>Back to map</button>
     </div>`;
 
-  root.querySelector("[data-again]").onclick = () => go(awarded ? "map" : "submit", {});
+  if (awarded) {
+    const before = stageFor((result.user_tier_points ?? 0) - (result.tier_points ?? 0)).key;
+    const evolved = before !== stageFor(result.user_tier_points ?? 0).key;
+    celebrate(root.querySelector("#result-companion .companion"), { evolved });
+  }
+
+  root.querySelector("[data-again]").onclick = () => go(awarded ? "today" : "submit", {});
   root.querySelector("[data-map]").onclick = () => go("map");
 }
