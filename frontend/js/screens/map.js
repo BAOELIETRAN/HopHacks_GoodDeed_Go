@@ -1,8 +1,10 @@
 /* Map view: quest pins (green) and open community reports (coral). */
 
 import { api, getLocation, state } from "../api.js";
-import { DEFAULT_RADIUS_KM } from "../config.js";
-import { directionsUrl, distanceLabel, esc, h, icon, statusbar, toast } from "../ui.js";
+import { radiusKm } from "../config.js";
+import {
+  directionsUrl, distanceLabel, esc, h, icon, radiusPicker, statusbar, toast,
+} from "../ui.js";
 import { go } from "../router.js";
 
 let mapInstance = null;
@@ -21,6 +23,7 @@ export async function renderMap(root) {
         <span class="chip chip-yellow">★ ${user.tier_points ?? 0}</span>
       </div>
     </div>
+    <div class="pad" style="padding-top:0;padding-bottom:10px" id="radius-slot"></div>
     <div id="map"></div>
     <div class="map-legend">
       <span><span class="legend-dot" style="background:var(--green)"></span>Verified nonprofit</span>
@@ -34,13 +37,24 @@ export async function renderMap(root) {
   // Leaflet needs a laid-out container, so build the map after paint.
   requestAnimationFrame(() => initLeaflet(loc));
 
-  const [quests, reports] = await Promise.all([
-    api.quests(loc.lat, loc.lng, DEFAULT_RADIUS_KM),
-    api.reports(loc.lat, loc.lng, DEFAULT_RADIUS_KM, "open"),
-  ]);
+  const load = async () => {
+    const [quests, reports] = await Promise.all([
+      api.quests(loc.lat, loc.lng, radiusKm()),
+      api.reports(loc.lat, loc.lng, radiusKm(), "open"),
+    ]);
+    drawPins(quests, reports);
+    renderHighlight(root.querySelector("#map-highlight"), quests);
+  };
 
-  drawPins(quests, reports);
-  renderHighlight(root.querySelector("#map-highlight"), quests);
+  root.querySelector("#radius-slot").replaceChildren(
+    radiusPicker(() => {
+      // Rebuild the map so old pins from a wider search don't linger.
+      initLeaflet(loc);
+      load();
+    }),
+  );
+
+  await load();
 }
 
 function initLeaflet(loc) {

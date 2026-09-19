@@ -24,7 +24,24 @@ export const API_BASE = resolveApiBase();
 
 // Baltimore / Johns Hopkins, used when geolocation is denied or unavailable.
 export const FALLBACK_LOCATION = { lat: 39.3299, lng: -76.6205 };
-export const DEFAULT_RADIUS_KM = 8;
+
+// Search radius, in miles, chosen by the user rather than fixed. A city
+// centre is dense at 1 mile; a suburb can be empty at 5. The backend takes
+// km and caps at 50 (~31 miles).
+export const RADIUS_CHOICES_MI = [1, 3, 5, 10, 25];
+export const DEFAULT_RADIUS_MI = 5;
+const MI_TO_KM = 1.609344;
+
+export function getRadiusMiles() {
+  const saved = parseFloat(localStorage.getItem("gdg_radius_mi") || "");
+  return RADIUS_CHOICES_MI.includes(saved) ? saved : DEFAULT_RADIUS_MI;
+}
+
+export function setRadiusMiles(miles) {
+  localStorage.setItem("gdg_radius_mi", String(miles));
+}
+
+export const radiusKm = () => Math.min(50, getRadiusMiles() * MI_TO_KM);
 
 // Set true to force placeholder data even when the backend is reachable.
 export const FORCE_MOCKS = localStorage.getItem("gdg_force_mocks") === "1";

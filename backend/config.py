@@ -58,6 +58,37 @@ QUEST_CACHE_GRID = 0.02
 # any point stops the clock -- only untouched claims expire.
 CLAIM_EXPIRY_HOURS = 3
 
+# --- Presence-verified check-ins ----------------------------------------
+# You must actually be at an organization to start a quest there, and the
+# clock is kept by the server from location heartbeats rather than typed in
+# afterwards. Self-reported minutes were the one input nothing could check.
+
+# How close you must be to start. Consumer GPS is good to ~10-20m outdoors
+# and much worse beside tall buildings, so this is generous on purpose --
+# too tight and real volunteers get locked out of their own shift.
+CHECKIN_RADIUS_M = 200
+
+# How far you can drift before the session auto-stops. Deliberately wider
+# than CHECKIN_RADIUS_M: without that gap, GPS jitter alone would end a
+# session while someone stands still in a doorway.
+LEAVE_RADIUS_M = 350
+
+# Heartbeats arrive every ~30s. Miss this many seconds and we assume the app
+# was closed or the phone lost signal, and close the session at the last
+# position we trusted rather than billing time nobody was there for.
+HEARTBEAT_GRACE_SECONDS = 5 * 60
+
+# Sessions longer than this are almost certainly a forgotten timer.
+MAX_SESSION_MINUTES = 8 * 60
+
+# Below this, a session is treated as a mis-tap rather than a shift.
+MIN_SESSION_MINUTES = 2
+
+# Leaderboard points multiplier for a submission backed by a verified
+# session. Applied to `points` only, never `tier_points` -- the same rule
+# that keeps quest multipliers out of the tier ladder.
+VERIFIED_PRESENCE_MULTIPLIER = 1.5
+
 # Radius (km) used for the "nearby" leaderboard scope, since that endpoint
 # takes no lat/lng of its own -- it uses the requester's last known location.
 LEADERBOARD_NEARBY_RADIUS_KM = 15.0

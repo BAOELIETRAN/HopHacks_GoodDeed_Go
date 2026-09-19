@@ -3,10 +3,23 @@
 
 import { api, ApiError, getLocation, setSession, state } from "../api.js";
 import {
-  compressImage, directionsUrl, distanceLabel, esc, h, icon, prettyCategory,
+  directionsUrl, distanceLabel, esc, h, icon, prettyCategory, setupPhotoInput,
   statusbar, toast,
 } from "../ui.js";
 import { go } from "../router.js";
+
+
+/** Straight-line metres between a fix and a quest. Mirrors the server's
+ *  haversine so the button and the API agree about "close enough". */
+function metresAway(loc, quest) {
+  const R = 6371000, toRad = (x) => (x * Math.PI) / 180;
+  const dLat = toRad(quest.lat - loc.lat), dLng = toRad(quest.lng - loc.lng);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(loc.lat)) * Math.cos(toRad(quest.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+const formatAway = (m) => (m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`);
 
 /** Quest detail: the "why you can trust this" screen before starting. */
 export function renderQuest(root, { quest }) {
@@ -77,18 +90,66 @@ export function renderQuest(root, { quest }) {
         </p>
       </div>
 
-      <button class="btn btn-primary" data-start>Start quest</button>
-      <p class="tiny center">Points are awarded after an AI authenticity check.</p>
+      <button class="btn btn-primary" data-start disabled>Checking where you are…</button>
+      <p class="tiny center" id="startnote">
+        You can start this quest once you're at the site. The clock then runs
+        automatically — no typing in how long you stayed.
+      </p>
     </div>`;
 
   root.querySelector("[data-back]").onclick = () => history.back();
-  root.querySelector("[data-start]").onclick = () => go("submit", { quest });
   root.querySelector("[data-directions]").href = directionsUrl(quest.lat, quest.lng);
+
+  const startBtn = root.querySelector("[data-start]");
+  const note = root.querySelector("#startnote");
+
+  // Proximity gate. The server enforces this too -- this is only so the
+  // button explains itself instead of failing with a 403 after a tap.
+  (async () => {
+    const loc = await getLocation();
+    const away = metresAway(loc, quest);
+    const limit = 200; // matches CHECKIN_RADIUS_M
+
+    if (away <= limit) {
+      startBtn.disabled = false;
+      startBtn.textContent = "I'm here — start the clock";
+      note.textContent = "The clock runs while you're on site and stops if you leave.";
+    } else {
+      startBtn.disabled = true;
+      startBtn.textContent = `Get closer to start (${formatAway(away)} away)`;
+      note.textContent = `You need to be within ${limit}m of ${quest.org_name}. Tap Directions to head over.`;
+    }
+  })();
+
+  startBtn.onclick = async () => {
+    startBtn.disabled = true;
+    startBtn.textContent = "Starting…";
+    try {
+      const loc = await getLocation();
+      const session = await api.startCheckin({
+        org_name: quest.org_name,
+        org_lat: quest.lat,
+        org_lng: quest.lng,
+        lat: loc.lat,
+        lng: loc.lng,
+        category: quest.category,
+        quest_type: quest.quest_type,
+      });
+      go("active", { checkin: session });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Couldn't start the quest";
+      note.textContent = msg;
+      toast(msg, true);
+      startBtn.disabled = false;
+      startBtn.textContent = "Try again";
+    }
+  };
 }
 
 /** The submission form itself. */
-export function renderSubmit(root, { quest } = {}) {
+export function renderSubmit(root, { quest, checkin } = {}) {
   const orgName = quest?.org_name || "";
+  const measured = checkin && checkin.elapsed_minutes >= 0 ? checkin : null;
   root.innerHTML = `
     ${statusbar()}
     <div class="appbar">
@@ -124,10 +185,25 @@ export function renderSubmit(root, { quest } = {}) {
         <textarea id="desc" placeholder="Be specific — what you did, who with, what it looked like."></textarea>
       </label>
 
-      <label class="field">
-        <span>Time spent (minutes)</span>
-        <input type="number" id="mins" min="0" max="600" step="5" value="45">
-      </label>
+      ${measured
+        ? `<div class="panel panel-mint">
+             <div class="row-between">
+               <div>
+                 <strong style="font-size:14px">✓ ${measured.elapsed_minutes} minutes, verified</strong>
+                 <p class="tiny" style="margin-top:3px">
+                   Timed on site. Nothing to type in, and worth more than a self-reported shift.
+                 </p>
+               </div>
+             </div>
+             <input type="hidden" id="mins" value="${measured.elapsed_minutes}">
+           </div>`
+        : `<label class="field">
+             <span>Time spent (minutes)</span>
+             <input type="number" id="mins" min="0" max="600" step="5" value="45">
+             <p class="tiny" style="margin-top:6px">
+               Self-reported. Starting from the quest screen times it for you and scores higher.
+             </p>
+           </label>`}
 
       <div class="panel panel-yellow">
         <p style="font-size:13px;font-weight:700">
@@ -148,18 +224,16 @@ export function renderSubmit(root, { quest } = {}) {
 
   root.querySelector("[data-back]").onclick = () => history.back();
 
-  fileInput.onchange = async () => {
-    const file = fileInput.files?.[0];
-    if (!file) return;
-    try {
-      photoDataUrl = await compressImage(file);
-      dropzone.querySelector("img")?.remove();
-      dropzone.appendChild(h(`<img src="${photoDataUrl}" alt="Your proof photo">`));
-      guide.style.display = "none";
-    } catch (err) {
-      toast(err.message || "Could not read that image", true);
-    }
-  };
+  setupPhotoInput({
+    dropzone,
+    input: fileInput,
+    guide,
+    onPhoto: (dataUrl) => { photoDataUrl = dataUrl; },
+    onError: (message) => {
+      errEl.textContent = message || "";
+      errEl.hidden = !message;
+    },
+  });
 
   sendBtn.onclick = async () => {
     const org = root.querySelector("#org").value.trim();
@@ -191,6 +265,9 @@ export function renderSubmit(root, { quest } = {}) {
         lat: loc.lat,
         lng: loc.lng,
         submitted_at: new Date().toISOString(),
+        // The server ignores the minutes above when this is present and
+        // uses what it measured instead.
+        checkin_id: measured ? measured.checkin_id : undefined,
       });
       if (state.user) {
         setSession(state.token, {
@@ -236,7 +313,10 @@ export function renderResult(root, { result }) {
         <div class="scorelines" style="margin-top:10px">
           <div><span>Toward your tier</span><span>+${result.tier_points ?? 0}</span></div>
           <div><span>Authenticity confidence</span><span>${confidence}%</span></div>
-          <div><span>Time logged</span><span>${result.time_spent_minutes ?? 0} min</span></div>
+          <div>
+            <span>Time logged</span>
+            <span>${result.time_spent_minutes ?? 0} min${result.verified_presence ? " ✓ verified" : ""}</span>
+          </div>
         </div>
       </div>
 

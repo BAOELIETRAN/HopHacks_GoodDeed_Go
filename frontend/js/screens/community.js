@@ -1,9 +1,9 @@
 /* Community feed: open reports, claim, submit proof, poster confirms done. */
 
 import { api, ApiError, getLocation } from "../api.js";
-import { DEFAULT_RADIUS_KM } from "../config.js";
+import { radiusKm } from "../config.js";
 import {
-  compressImage, directionsUrl, empty, esc, h, REPORT_ICON, spinner, statusbar,
+  directionsUrl, empty, esc, h, REPORT_ICON, setupPhotoInput, spinner, statusbar,
   timeAgo, timeLeft, toast,
 } from "../ui.js";
 import { go } from "../router.js";
@@ -41,7 +41,7 @@ export async function renderCommunity(root) {
     // "mine" isn't a server status -- it's a filter over everything I'm
     // involved in, whether I posted it or claimed it.
     const status = tab === "nearby" || tab === "mine" ? null : tab;
-    let rows = await api.reports(loc.lat, loc.lng, DEFAULT_RADIUS_KM, status);
+    let rows = await api.reports(loc.lat, loc.lng, radiusKm(), status);
     if (tab === "mine") rows = rows.filter((r) => r.claimed_by_me || r.is_mine);
 
     if (!rows.length) {
@@ -197,34 +197,16 @@ export function renderReportForm(root) {
   let photo = null;
 
   root.querySelector("[data-back]").onclick = () => history.back();
-  fileInput.onchange = async () => {
-    const file = fileInput.files?.[0];
-    if (!file) return;
-    errEl.hidden = true;
-    try {
-      photo = await compressImage(file);
-    } catch (err) {
-      photo = null;
-      errEl.textContent = err.message || "Couldn't read that image.";
-      errEl.hidden = false;
-      return;
-    }
-
-    dropzone.querySelector("img")?.remove();
-    const preview = h(`<img src="${photo}" alt="Your photo">`);
-    // A format the browser can't decode (HEIC from an iPhone) otherwise
-    // shows a broken-image icon and fails later with a server error.
-    preview.onerror = () => {
-      preview.remove();
-      guide.style.display = "";
-      photo = null;
-      errEl.textContent =
-        "That image format isn't supported. On iPhone: Settings › Camera › Formats › Most Compatible, then retake.";
-      errEl.hidden = false;
-    };
-    dropzone.appendChild(preview);
-    guide.style.display = "none";
-  };
+  setupPhotoInput({
+    dropzone,
+    input: fileInput,
+    guide,
+    onPhoto: (dataUrl) => { photo = dataUrl; },
+    onError: (message) => {
+      errEl.textContent = message || "";
+      errEl.hidden = !message;
+    },
+  });
 
   sendBtn.onclick = async () => {
     const description = root.querySelector("#desc").value.trim();
@@ -300,14 +282,16 @@ export function renderProof(root, { report }) {
   let photo = null;
 
   root.querySelector("[data-back]").onclick = () => history.back();
-  fileInput.onchange = async () => {
-    const file = fileInput.files?.[0];
-    if (!file) return;
-    photo = await compressImage(file);
-    dropzone.querySelector("img")?.remove();
-    dropzone.appendChild(h(`<img src="${photo}" alt="">`));
-    guide.style.display = "none";
-  };
+  setupPhotoInput({
+    dropzone,
+    input: fileInput,
+    guide,
+    onPhoto: (dataUrl) => { photo = dataUrl; },
+    onError: (message) => {
+      errEl.textContent = message || "";
+      errEl.hidden = !message;
+    },
+  });
 
   sendBtn.onclick = async () => {
     const description = root.querySelector("#desc").value.trim();

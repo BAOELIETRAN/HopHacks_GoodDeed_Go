@@ -114,6 +114,13 @@ export const api = {
   quests: (lat, lng, radius) =>
     withFallback(() => request(`/quests?${qs({ lat, lng, radius })}`), mock.MOCK_QUESTS),
 
+  // --- presence-verified sessions -----------------------------------------
+  activeCheckin: () => request("/checkins/active"),
+  startCheckin: (payload) => request("/checkins", { method: "POST", body: payload }),
+  heartbeat: (id, lat, lng) =>
+    request(`/checkins/${id}/heartbeat`, { method: "POST", body: { lat, lng } }),
+  stopCheckin: (id) => request(`/checkins/${id}/stop`, { method: "POST" }),
+
   // --- submissions ---------------------------------------------------------
   submit: (payload) => request("/submissions", { method: "POST", body: payload }),
 

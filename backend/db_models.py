@@ -12,7 +12,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -122,6 +122,53 @@ class Submission(Base):
     # bookkeeping: server-side receipt time, used for daily/weekly leaderboard
     # windows so a client's clock can't shift which period a score lands in.
     scored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+
+    # Set when the minutes came from a presence-verified check-in rather than
+    # being typed in. Displayed as a badge and worth a scoring bonus.
+    checkin_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    verified_presence: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class CheckIn(Base):
+    """A presence-verified volunteering session.
+
+    Started only when the user is physically near the organization, and
+    timed by the server from location heartbeats. ``elapsed_seconds`` is
+    accumulated from heartbeats rather than computed as (end - start), so
+    time spent out of range is never credited.
+    """
+
+    __tablename__ = "checkins"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(32), ForeignKey("users.id"), index=True)
+
+    org_name: Mapped[str] = mapped_column(String(255))
+    org_lat: Mapped[float] = mapped_column(Float)
+    org_lng: Mapped[float] = mapped_column(Float)
+    category: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    quest_type: Mapped[str] = mapped_column(String(16), default="daily")
+
+    # active | done | abandoned
+    status: Mapped[str] = mapped_column(String(16), default="active", index=True)
+
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Last heartbeat we accepted as "present", and where it came from.
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    last_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    last_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Credited time, accumulated between in-range heartbeats.
+    elapsed_seconds: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Why it ended, shown to the user: completed | left_area | timed_out | too_long
+    end_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    # Set once the session has been turned into a scored submission, so one
+    # shift cannot be claimed twice.
+    submission_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 
 class Opportunity(Base):

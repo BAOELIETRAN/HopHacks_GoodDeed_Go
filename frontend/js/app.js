@@ -5,6 +5,7 @@ import { defineRoute, dispatch, go, setNavigateHook } from "./router.js";
 import { renderWelcome, renderSignup, renderLogin } from "./screens/auth.js";
 import { renderMap, teardownMap } from "./screens/map.js";
 import { renderQuest, renderResult, renderSubmit } from "./screens/submit.js";
+import { renderActive, teardownActive } from "./screens/active.js";
 import { renderQuests } from "./screens/quests.js";
 import { renderLeaderboard } from "./screens/leaderboard.js";
 import { renderCommunity, renderProof, renderReportForm } from "./screens/community.js";
@@ -18,6 +19,7 @@ defineRoute("quests",      { render: renderQuests,     nav: true,  auth: true })
 defineRoute("quest",       { render: renderQuest,      auth: true });
 defineRoute("submit",      { render: renderSubmit,     auth: true });
 defineRoute("result",      { render: renderResult,     auth: true });
+defineRoute("active",      { render: renderActive,     auth: true });
 defineRoute("community",   { render: renderCommunity,  nav: true,  auth: true });
 defineRoute("report",      { render: renderReportForm, auth: true });
 defineRoute("proof",       { render: renderProof,      auth: true });
@@ -37,11 +39,14 @@ function buildNav() {
   nav.innerHTML = NAV.map((n) =>
     `<button data-route="${n.route}"><span class="ico">${n.icon}</span>${n.label}</button>`).join("");
   nav.querySelectorAll("button").forEach((b) => {
-    b.onclick = () => { if (b.dataset.route !== "map") teardownMap(); go(b.dataset.route); };
+    b.onclick = () => { if (b.dataset.route !== "map") teardownMap(); teardownActive(); go(b.dataset.route); };
   });
 }
 
 setNavigateHook((name, route) => {
+  // The active-quest screen runs a heartbeat loop; leaving it must stop that.
+  if (name !== "active") teardownActive();
+
   const nav = document.getElementById("nav");
   nav.hidden = !route.nav;
   nav.querySelectorAll("button").forEach((b) =>

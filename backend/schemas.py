@@ -82,6 +82,44 @@ class OpportunityOut(BaseModel):
     distance_km: float
 
 
+# --- check-ins (presence-verified sessions) -------------------------------
+
+class CheckInStart(BaseModel):
+    """Where the user is, and which org they say they're at. The server
+    checks the two against each other before starting a clock."""
+
+    org_name: str = Field(min_length=1, max_length=255)
+    org_lat: float
+    org_lng: float
+    lat: float          # the user's current position
+    lng: float
+    category: Optional[str] = None
+    quest_type: Optional[Literal["daily", "monthly"]] = "daily"
+
+
+class HeartbeatIn(BaseModel):
+    lat: float
+    lng: float
+
+
+class CheckInOut(BaseModel):
+    checkin_id: str
+    org_name: str
+    org_lat: float
+    org_lng: float
+    category: Optional[str]
+    quest_type: Literal["daily", "monthly"]
+    status: Literal["active", "done", "abandoned"]
+    started_at: str
+    elapsed_seconds: int
+    elapsed_minutes: int
+    end_reason: Optional[str]      # completed | left_area | timed_out | too_long
+    estimated_points: int
+    checkin_radius_m: int
+    leave_radius_m: int
+    already_submitted: bool
+
+
 # --- submissions ----------------------------------------------------------
 
 class SubmissionCreate(BaseModel):
@@ -91,10 +129,14 @@ class SubmissionCreate(BaseModel):
     org_name: str
     photo_url: str
     description: str = ""
-    time_spent_minutes: int = Field(ge=0)
+    # Ignored when checkin_id is supplied -- the measured time wins.
+    time_spent_minutes: int = Field(default=0, ge=0)
     lat: float
     lng: float
     submitted_at: str
+    # A finished presence-verified session. When present, minutes come from
+    # the server's clock and the submission is marked verified.
+    checkin_id: Optional[str] = None
 
 
 class SubmissionOut(BaseModel):
@@ -115,6 +157,7 @@ class SubmissionOut(BaseModel):
     user_tier_points: int
     current_streak: int
     is_personal_best: bool
+    verified_presence: bool = False
 
 
 # --- leaderboard ------------------------------------------------------

@@ -10,10 +10,12 @@ from ..agent_client import (
     score_submission_from_dict,
     tier_for_points,
 )
+from ..config import VERIFIED_PRESENCE_MULTIPLIER
 from ..database import get_db
 from ..deps import get_current_user
 from ..gamification import record_activity
 from ..schemas import SubmissionCreate, SubmissionOut
+from .checkins import consume_for_submission
 
 router = APIRouter(tags=["submissions"])
 
@@ -33,14 +35,31 @@ def create_submission(
         .first()
     )
     category = matched.category if matched else None
-    multiplier = multiplier_for_quest_type(matched.quest_type if matched else "daily")
+    quest_type = matched.quest_type if matched else "daily"
+
+    # A presence-verified session overrides everything the client said about
+    # time and category: the server measured it, so there is no reason to
+    # trust the typed value over the recorded one.
+    checkin = None
+    minutes = body.time_spent_minutes
+    if body.checkin_id:
+        checkin = consume_for_submission(db, user, body.checkin_id)
+        minutes = checkin.elapsed_seconds // 60
+        category = checkin.category or category
+        quest_type = checkin.quest_type or quest_type
+
+    multiplier = multiplier_for_quest_type(quest_type)
+    if checkin is not None:
+        # Verified presence is worth more than an unverifiable claim. This
+        # is the incentive that makes checking in worth the extra tap.
+        multiplier *= VERIFIED_PRESENCE_MULTIPLIER
 
     submission_dict = {
         "user_id": user.id,
         "org_name": body.org_name,
         "photo_url": body.photo_url,
         "description": body.description,
-        "time_spent_minutes": body.time_spent_minutes,
+        "time_spent_minutes": minutes,
         "lat": body.lat,
         "lng": body.lng,
         "submitted_at": body.submitted_at,
@@ -52,7 +71,7 @@ def create_submission(
         org_name=body.org_name,
         photo_url=body.photo_url,
         description=body.description,
-        time_spent_minutes=body.time_spent_minutes,
+        time_spent_minutes=minutes,
         lat=body.lat,
         lng=body.lng,
         submitted_at=body.submitted_at,
@@ -60,8 +79,15 @@ def create_submission(
         tier_points=score["tier_points"],
         authenticity_confidence=score["authenticity_confidence"],
         rationale=score["rationale"],
+        checkin_id=checkin.id if checkin else None,
+        verified_presence=checkin is not None,
     )
     db.add(row)
+    db.flush()
+    if checkin is not None:
+        # Bind the session to this submission so one shift can't be
+        # submitted twice.
+        checkin.submission_id = row.id
 
     user.tier_points += score["tier_points"]
     user.tier = tier_for_points(user.tier_points)
@@ -93,4 +119,5 @@ def create_submission(
         user_tier_points=user.tier_points,
         current_streak=user.current_streak,
         is_personal_best=is_personal_best,
+        verified_presence=row.verified_presence,
     )

@@ -357,6 +357,18 @@ Never invent citations or facts you did not find. Keep the summary under 45 \
 words and state what the evidence actually was."""
 
 
+def _distance_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Great-circle distance. Places `locationBias` is a bias, not a limit --
+    a 1km search happily returns results 13km away -- so results have to be
+    filtered here or the radius control means nothing."""
+    from math import asin, cos, radians, sin, sqrt
+
+    lat1_r, lng1_r, lat2_r, lng2_r = map(radians, (lat1, lng1, lat2, lng2))
+    dlat, dlng = lat2_r - lat1_r, lng2_r - lng1_r
+    a = sin(dlat / 2) ** 2 + cos(lat1_r) * cos(lat2_r) * sin(dlng / 2) ** 2
+    return 2 * 6371.0 * asin(sqrt(a))
+
+
 def categorize(types: Sequence[str], matched_query: str = "", name: str = "") -> str:
     """Best-effort mapping of a Places record onto a canonical category."""
     haystack = f"{matched_query} {name}".lower()
@@ -645,6 +657,16 @@ def find_opportunities(
     except Exception as exc:  # incl. raw connection errors, not just ProviderError
         log.error("Places lookup failed: %s", exc)
         return []
+
+    # Drop anything outside the radius the caller actually asked for.
+    inside = [
+        p for p in raw_places
+        if _distance_km(lat, lng, p["lat"], p["lng"]) <= radius_km
+    ]
+    dropped = len(raw_places) - len(inside)
+    if dropped:
+        log.info("Discarded %d place(s) outside the %.1fkm radius", dropped, radius_km)
+    raw_places = inside
 
     scored: list[tuple[float, dict[str, Any]]] = []
     for place in raw_places:

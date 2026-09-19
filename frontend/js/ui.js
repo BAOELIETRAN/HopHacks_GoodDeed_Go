@@ -1,6 +1,8 @@
 /* Small shared UI helpers. No framework -- these keep the screens declarative
    without pulling in a build step. */
 
+import { getRadiusMiles, RADIUS_CHOICES_MI, setRadiusMiles } from "./config.js";
+
 export const h = (html) => {
   const t = document.createElement("template");
   t.innerHTML = html.trim();
@@ -78,6 +80,31 @@ export function timeLeft(iso) {
   return `${Math.floor(mins / 60)}h ${mins % 60}m left`;
 }
 
+/** Radius picker. Returns an element; calls onChange(miles) on selection. */
+export function radiusPicker(onChange) {
+  const el = h(`
+    <div class="radius-picker">
+      <span class="tiny" style="font-weight:800">Search within</span>
+      <div class="pills" id="radius-pills"></div>
+    </div>`);
+  const pills = el.querySelector("#radius-pills");
+
+  const paint = () => {
+    const current = getRadiusMiles();
+    pills.replaceChildren(...RADIUS_CHOICES_MI.map((mi) => {
+      const b = h(`<button aria-selected="${mi === current}">${mi} mi</button>`);
+      b.onclick = () => {
+        setRadiusMiles(mi);
+        paint();
+        onChange?.(mi);
+      };
+      return b;
+    }));
+  };
+  paint();
+  return el;
+}
+
 let toastTimer;
 export function toast(message, isError = false) {
   document.querySelector(".toast")?.remove();
@@ -111,6 +138,93 @@ export function fileToDataUrl(file) {
     reader.onerror = () => reject(new Error("Could not read that image"));
     reader.readAsDataURL(file);
   });
+}
+
+/** Wire up a photo dropzone: pick → preview → report problems.
+ *
+ *  Written once and shared because the same bug appeared in three forms: the
+ *  <img> was appended but never rendered, leaving the alt text on screen and
+ *  no indication of what went wrong. Almost always an iPhone HEIC the
+ *  browser cannot decode.
+ *
+ *  Guarantees:
+ *   - the placeholder is only hidden once the image has actually decoded
+ *   - a decode failure restores the placeholder and reports a real reason
+ *   - object URLs are revoked when replaced, so picking ten photos doesn't
+ *     leak ten blobs
+ */
+export function setupPhotoInput({ dropzone, input, guide, onPhoto, onError }) {
+  let objectUrl = null;
+
+  const release = () => {
+    if (objectUrl) {
+      URL.revokeObjectURL(objectUrl);
+      objectUrl = null;
+    }
+  };
+
+  const showPlaceholder = () => {
+    dropzone.querySelector("img")?.remove();
+    if (guide) guide.style.display = "";
+    release();
+  };
+
+  const fail = (message) => {
+    console.warn("[gdg] photo:", message);
+    showPlaceholder();
+    onPhoto?.(null);
+    onError?.(message);
+  };
+
+  input.onchange = async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    console.info("[gdg] photo selected:", file.name, file.type || "(no type)", `${Math.round(file.size / 1024)}KB`);
+
+    onError?.(null);
+    let dataUrl;
+    try {
+      dataUrl = await compressImage(file);
+    } catch (err) {
+      return fail(err?.message || "Couldn't read that image.");
+    }
+
+    // Preview from an object URL: cheaper than re-decoding a multi-megabyte
+    // base64 string, and it tells us whether the browser can render it at
+    // all before the user waits on an upload that will fail.
+    release();
+    objectUrl = URL.createObjectURL(file);
+
+    const img = new Image();
+    img.alt = "Your photo";
+    img.onload = () => {
+      dropzone.querySelector("img")?.remove();
+      dropzone.appendChild(img);
+      if (guide) guide.style.display = "none";
+      onPhoto?.(dataUrl);
+    };
+    img.onerror = () => {
+      // The compressed data URL can still be fine when the original is a
+      // format the browser won't preview, so try it before giving up.
+      const fallback = new Image();
+      fallback.alt = "Your photo";
+      fallback.onload = () => {
+        dropzone.querySelector("img")?.remove();
+        dropzone.appendChild(fallback);
+        if (guide) guide.style.display = "none";
+        onPhoto?.(dataUrl);
+      };
+      fallback.onerror = () =>
+        fail(
+          "This device saved that photo in a format browsers can't show (usually HEIC). " +
+          "On iPhone: Settings › Camera › Formats › Most Compatible, then retake.",
+        );
+      fallback.src = dataUrl;
+    };
+    img.src = objectUrl;
+  };
+
+  return { reset: showPlaceholder, release };
 }
 
 /** Shrink a photo before upload. Phone cameras produce 3-6MB JPEGs; sending

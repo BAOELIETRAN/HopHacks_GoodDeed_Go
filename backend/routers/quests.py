@@ -26,6 +26,13 @@ def _cache_key(lat: float, lng: float, radius_km: float) -> str:
     return f"{bucket_lat:.3f}:{bucket_lng:.3f}:{radius_km:g}"
 
 
+def _cap_for(radius_km: float) -> int:
+    """More area searched, more pins. A fixed cap meant a 25-mile search
+    returned the same twenty results as a 1-mile one, which makes the radius
+    control look broken even when it is working."""
+    return max(20, min(60, int(radius_km * 4)))
+
+
 # One refresh per cache key at a time. Without this, a burst of map loads on
 # an expired key would each kick off its own Places fan-out.
 _refreshing: set[str] = set()
@@ -43,7 +50,7 @@ def _refresh_in_background(key: str, lat: float, lng: float, radius: float) -> N
         # returned, which is the point of doing this off the request path.
         db = SessionLocal()
         try:
-            opportunities = find_opportunities(lat, lng, radius)
+            opportunities = find_opportunities(lat, lng, radius, max_results=_cap_for(radius))
             if not opportunities:
                 return  # keep the stale rows rather than emptying the map
             _replace_cache(db, key, opportunities)
@@ -96,7 +103,7 @@ def get_quests(
             _refresh_in_background(key, lat, lng, radius)
         return [_to_out(row, lat, lng) for row in cached]
 
-    opportunities = find_opportunities(lat, lng, radius)
+    opportunities = find_opportunities(lat, lng, radius, max_results=_cap_for(radius))
 
     db.query(m.Opportunity).filter(m.Opportunity.cache_key == key).delete()
     rows = [
