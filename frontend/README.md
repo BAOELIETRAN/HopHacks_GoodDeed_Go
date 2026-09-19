@@ -5,15 +5,23 @@ install** — plain HTML/CSS/ES modules. Open it with any static server.
 
 ## Run it
 
-```bash
-# 1. backend (from the repo root, needs the .env keys)
-uvicorn backend.main:app --reload --port 8000
+From the repo root:
 
-# 2. frontend (from this folder)
-python3 -m http.server 5173
+```bash
+./run.sh --seed     # first time: starts both servers + loads demo data
+./run.sh            # after that
 ```
 
-Then open **http://localhost:5173**.
+Then open **http://localhost:5173**. Ctrl+C stops both.
+
+Demo login: `lena@demo.dev` / `demo1234`.
+
+Starting them by hand instead:
+
+```bash
+uvicorn backend.main:app --reload --port 8000   # repo root
+cd frontend && python3 -m http.server 5173
+```
 
 The frontend expects the backend on `http://localhost:8000`. To point it
 somewhere else, run this in the browser console — no rebuild needed:
