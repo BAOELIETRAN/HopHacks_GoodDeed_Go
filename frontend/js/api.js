@@ -54,12 +54,28 @@ async function request(path, { method = "GET", body, auth = true } = {}) {
     throw new ApiError("Your session expired. Please sign in again.", 401);
   }
   if (!res.ok) {
-    // FastAPI puts the useful message in `detail`; 422 nests it in a list.
+    // FastAPI's `detail` is a string for raised HTTPExceptions, a list of
+    // field errors for schema violations, and an object when a handler
+    // raises one. Missing the object case threw away the server's actual
+    // explanation and showed a bare status code instead.
     let detail = `Request failed (${res.status})`;
     try {
       const data = await res.json();
-      if (typeof data.detail === "string") detail = data.detail;
-      else if (Array.isArray(data.detail)) detail = data.detail.map((d) => d.msg).join(", ");
+      const d = data?.detail;
+      if (typeof d === "string" && d.trim()) {
+        detail = d;
+      } else if (Array.isArray(d) && d.length) {
+        detail = d
+          .map((e) => {
+            const field = Array.isArray(e.loc) ? e.loc[e.loc.length - 1] : null;
+            return field ? `${field}: ${e.msg}` : e.msg;
+          })
+          .join(", ");
+      } else if (d && typeof d === "object") {
+        detail = d.message || d.reason || JSON.stringify(d);
+      } else if (typeof data?.message === "string") {
+        detail = data.message;
+      }
     } catch { /* non-JSON error body */ }
     throw new ApiError(detail, res.status);
   }

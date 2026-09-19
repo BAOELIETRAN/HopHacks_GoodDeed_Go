@@ -155,14 +155,35 @@ export function renderReportForm(root) {
           Public spaces only. Never enter private property or handle hazardous waste.
         </p>
       </div>
+
+      <div class="card">
+        <strong style="font-size:14px">What counts as a community need</strong>
+        <p class="tiny" style="margin-top:8px;line-height:1.7">
+          ✓ Litter, illegal dumping, an overflowing bin<br>
+          ✓ Graffiti or a damaged bench, sign or fence<br>
+          ✓ Overgrown planting, a blocked path<br>
+          <span style="opacity:.75">
+          ✗ Anything needing emergency services or a professional crew<br>
+          ✗ Favours, requests for help, or anything not in a public space
+          </span>
+        </p>
+      </div>
+
       <label class="dropzone" id="dropzone">
-        <input type="file" accept="image/*" capture="environment" id="photo">
-        <div class="guide" id="guide">Tap to photograph the problem</div>
+        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment" id="photo">
+        <div class="guide" id="guide">
+          Tap to photograph the problem
+          <span style="display:block;font-weight:600;opacity:.75;margin-top:6px">
+            JPEG or PNG. Show the problem clearly.
+          </span>
+        </div>
       </label>
+
       <label class="field">
         <span>What needs fixing?</span>
-        <textarea id="desc" placeholder="e.g. Overflowing bins at 3rd and Maple"></textarea>
+        <textarea id="desc" placeholder="e.g. Overflowing bins at the corner of 3rd and Maple"></textarea>
       </label>
+
       <p class="err" id="formerr" hidden></p>
       <button class="btn btn-primary" id="send">Post to the feed</button>
       <p class="tiny center">An AI check filters spam before this appears publicly.</p>
@@ -179,16 +200,41 @@ export function renderReportForm(root) {
   fileInput.onchange = async () => {
     const file = fileInput.files?.[0];
     if (!file) return;
-    photo = await compressImage(file);
+    errEl.hidden = true;
+    try {
+      photo = await compressImage(file);
+    } catch (err) {
+      photo = null;
+      errEl.textContent = err.message || "Couldn't read that image.";
+      errEl.hidden = false;
+      return;
+    }
+
     dropzone.querySelector("img")?.remove();
-    dropzone.appendChild(h(`<img src="${photo}" alt="">`));
+    const preview = h(`<img src="${photo}" alt="Your photo">`);
+    // A format the browser can't decode (HEIC from an iPhone) otherwise
+    // shows a broken-image icon and fails later with a server error.
+    preview.onerror = () => {
+      preview.remove();
+      guide.style.display = "";
+      photo = null;
+      errEl.textContent =
+        "That image format isn't supported. On iPhone: Settings › Camera › Formats › Most Compatible, then retake.";
+      errEl.hidden = false;
+    };
+    dropzone.appendChild(preview);
     guide.style.display = "none";
   };
 
   sendBtn.onclick = async () => {
     const description = root.querySelector("#desc").value.trim();
-    if (!photo || description.length < 5) {
-      errEl.textContent = "Add a photo and a short description.";
+    if (!photo) {
+      errEl.textContent = "Add a photo of the problem.";
+      errEl.hidden = false;
+      return;
+    }
+    if (description.length < 5) {
+      errEl.textContent = "Describe what needs fixing, and roughly where.";
       errEl.hidden = false;
       return;
     }
@@ -201,10 +247,12 @@ export function renderReportForm(root) {
       toast("Posted to the community feed");
       go("community");
     } catch (err) {
-      // A rejected report is a normal outcome: the AI triage said no.
-      const msg = err instanceof ApiError ? err.message : "Couldn't post that — try again";
+      // A rejected report is a normal outcome, not a crash: the triage said
+      // no and explained why. Show that reason rather than a status code.
+      const msg = err instanceof ApiError ? err.message : "Couldn't post that — check your connection and try again.";
       errEl.textContent = msg;
       errEl.hidden = false;
+      errEl.scrollIntoView({ block: "center", behavior: "smooth" });
     } finally {
       sendBtn.disabled = false;
       sendBtn.textContent = "Post to the feed";

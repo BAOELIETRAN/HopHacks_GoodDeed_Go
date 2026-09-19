@@ -20,7 +20,7 @@ DEMO_EMAILS = [
     "lena@demo.dev", "theo@demo.dev", "ana@demo.dev",
     "jordan@demo.dev", "priya@demo.dev", "omar@demo.dev",
     # accounts created while testing
-    "maya@test.dev", "persist@test.dev", "team_a@test.dev", "team_b@test.dev",
+    "maya@test.dev", "persist@test.dev", "team_a@test.dev", "team_b@test.dev", "helper@test.dev",
 ]
 
 

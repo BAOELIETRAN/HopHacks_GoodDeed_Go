@@ -49,6 +49,11 @@ def build_image_block(photo: str | bytes | Path) -> dict[str, Any]:
 
     if isinstance(photo, str):
         value = photo.strip()
+        if not value:
+            # Path("") resolves to the current directory, so without this the
+            # failure surfaced as "Is a directory: '.'" -- baffling for a
+            # user who simply hadn't attached a photo.
+            raise ValueError("No photo was provided")
         if value.startswith(("http://", "https://")):
             return {"type": "image", "source": {"type": "url", "url": value}}
         if value.startswith("data:"):
@@ -90,6 +95,13 @@ def _sniff_media_type(raw: bytes) -> str:
             return media_type
     if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
         return "image/webp"
+    # iPhones shoot HEIC by default. The API rejects it, and relabelling it
+    # as JPEG produces an opaque server-side error, so name the problem.
+    if raw[4:12] in (b"ftypheic", b"ftypheix", b"ftyphevc", b"ftypmif1"):
+        raise ValueError(
+            "HEIC photos aren't supported yet. In iOS, Settings > Camera > "
+            "Formats > Most Compatible saves photos as JPEG."
+        )
     return "image/jpeg"
 
 

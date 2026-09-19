@@ -135,9 +135,12 @@ def create_report(
     )
 
     if not classification["is_valid"]:
+        # 400, not 422: the request was well-formed, the content was
+        # declined. 422 is what FastAPI returns for schema violations, and
+        # sharing it made an explainable rejection look like a client bug.
         raise HTTPException(
-            status_code=422,
-            detail={"message": classification["reason"], "category": classification["category"]},
+            status_code=400,
+            detail=classification["reason"] or "That doesn't look like a community need we can post.",
         )
 
     row = m.Report(
