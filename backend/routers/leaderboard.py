@@ -71,6 +71,21 @@ def get_leaderboard(
     sums = {uid: int(total) for uid, total, _count in rows}
     counts = {uid: int(count) for uid, _total, count in rows}
 
+    # Which kinds of deed each person actually did in the period.
+    kinds: dict[str, list[str]] = {}
+    for uid, deed_type, n in (
+        db.query(m.Submission.user_id, m.Submission.deed_type, func.count(m.Submission.id))
+        .filter(
+            m.Submission.user_id.in_(candidate_ids),
+            m.Submission.scored_at >= cutoff,
+            m.Submission.points > 0,
+        )
+        .group_by(m.Submission.user_id, m.Submission.deed_type)
+        .order_by(func.count(m.Submission.id).desc())
+        .all()
+    ):
+        kinds.setdefault(uid, []).append(deed_type or "volunteer")
+
     entries = [(uid, sums.get(uid, 0)) for uid in candidate_ids]
     ranked = rank_entries(entries)
 
@@ -83,6 +98,7 @@ def get_leaderboard(
             points=r["points"],
             deed_count=counts.get(r["user_id"], 0),
             is_you=r["user_id"] == user.id,
+            deed_types=kinds.get(r["user_id"], [])[:3],
         )
         for r in ranked
     ]

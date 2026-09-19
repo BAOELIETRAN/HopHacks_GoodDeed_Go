@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from .deeds import DEFAULT_DEED, _SHARED_TAIL as _RUBRIC_TAIL, get_deed
 from .models import CommunityReport, ReportClassification, ScoreResult, Submission
 from .providers import LLMProvider, get_llm_provider
 from .scoring import (
@@ -55,7 +56,14 @@ _SCORE_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
 }
 
-_SCORE_SYSTEM = """You verify volunteering submissions for GoodDeed Go, an app \
+_SCORE_PREAMBLE = """You verify good-deed submissions for GoodDeed Go.
+
+Read the rubric below: it tells you what kind of evidence to expect and what
+to check. Different deeds need different checks -- a donation receipt has no
+person in it and must not be judged as though it were a selfie.
+"""
+
+_SCORE_SYSTEM_LEGACY = """You verify volunteering submissions for GoodDeed Go, an app \
 where users photograph themselves doing a good deed.
 
 Judge AUTHENTICITY AND EFFORT ONLY. Never judge, estimate, or reward real-world \
@@ -93,6 +101,7 @@ def score_submission(
     org_name: str,
     time_spent_minutes: int | float,
     *,
+    deed_type: str = DEFAULT_DEED,
     category: str | None = None,
     quest_multiplier: float = 1.0,
     include_debug: bool = False,
@@ -122,27 +131,40 @@ def score_submission(
     500 the app.
     """
     llm = llm or get_llm_provider()
+    spec = get_deed(deed_type)
 
     from .providers.claude_llm import build_image_block
 
-    try:
-        image_block = build_image_block(photo)
-    except Exception as exc:
-        log.warning("Could not read submission photo: %s", exc)
-        return ScoreResult(0, 0, 0.0, f"We couldn't read that photo ({exc}). Try uploading it again.").to_dict()
+    content: list[dict[str, Any]] = []
+    if photo:
+        try:
+            content.append(build_image_block(photo))
+        except Exception as exc:
+            log.warning("Could not read submission photo: %s", exc)
+            return ScoreResult(
+                0, 0, 0.0, f"We couldn't read that photo ({exc}). Try uploading it again."
+            ).to_dict()
+    elif spec.photo_required:
+        return ScoreResult(
+            0, 0, 0.0, f"This kind of deed needs evidence: {spec.evidence.lower()}."
+        ).to_dict()
 
     minutes = max(0, int(time_spent_minutes or 0))
-    prompt = (
-        f"Organization: {org_name}\n"
-        f"Claimed time spent: {minutes} minutes\n"
-        f"User description: {description or '(none provided)'}\n\n"
-        "Assess this submission."
-    )
+    lines = [f"Deed type: {spec.label}"]
+    if org_name:
+        lines.append(f"Organization / cause: {org_name}")
+    if spec.time_required:
+        lines.append(f"Claimed time spent: {minutes} minutes")
+    lines.append(f"User description: {description or '(none provided)'}")
+    if not content:
+        lines.append("(No image was attached. This deed type does not require one.)")
+    lines.append("\nAssess this submission against the rubric.")
+    content.append({"type": "text", "text": "\n".join(lines)})
 
     try:
         raw = llm.complete_json(
-            system=_SCORE_SYSTEM,
-            content=[image_block, {"type": "text", "text": prompt}],
+            system=_SCORE_PREAMBLE + "\n" + spec.rubric + _RUBRIC_TAIL,
+            content=content,
             schema=_SCORE_SCHEMA,
             effort="medium",
         )
@@ -157,7 +179,11 @@ def score_submission(
 
     effective_category = normalize_category(category or raw.get("likely_category"))
     points, tier_points = compute_points(
-        effective_category, minutes, confidence, quest_multiplier=quest_multiplier
+        effective_category,
+        minutes,
+        confidence,
+        quest_multiplier=quest_multiplier,
+        deed_type=spec.key,
     )
 
     rationale = str(raw.get("rationale", "")).strip() or _default_rationale(confidence)
@@ -168,6 +194,7 @@ def score_submission(
         authenticity_confidence=round(confidence, 2),
         rationale=rationale,
         debug={
+            "deed_type": spec.key,
             "category_used": effective_category,
             "minutes_counted": min(minutes, PLAUSIBLE_MAX_MINUTES),
             "quest_multiplier": quest_multiplier,

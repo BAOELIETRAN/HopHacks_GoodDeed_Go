@@ -1,7 +1,7 @@
 /* Leaderboard: Friends / Nearby, daily / weekly, tier badges per user. */
 
 import { api, state } from "../api.js";
-import { empty, esc, initials, spinner, statusbar, tierBadge } from "../ui.js";
+import { deedIcon, empty, esc, initials, spinner, statusbar, tierBadge } from "../ui.js";
 
 let scope = "nearby";
 let period = "weekly";
@@ -96,6 +96,10 @@ function renderBoard(rows) {
       <span class="avatar">${esc(initials(r.name))}</span>
       <span class="grow truncate" style="font-weight:800">
         ${esc(r.name)} ${r.is_you ? `<span class="tiny">YOU</span>` : ""}
+        ${(r.deed_types || []).length
+          ? `<span class="deed-badge" title="Kinds of deed logged">${
+              (r.deed_types || []).map((d) => deedIcon(d)).join("")
+            }</span>` : ""}
       </span>
       ${tierBadge(tierFor(r.points))}
       <span style="font-weight:800;color:var(--green-press)">${r.points}</span>

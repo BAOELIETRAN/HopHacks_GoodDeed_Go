@@ -27,6 +27,7 @@ _ADDITIVE_COLUMNS: dict[str, dict[str, str]] = {
     "submissions": {
         "checkin_id": "VARCHAR(32)",
         "verified_presence": "BOOLEAN",
+        "deed_type": "VARCHAR(32)",
     },
 }
 

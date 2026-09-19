@@ -3,7 +3,7 @@
 
 import { api, ApiError, getLocation, setSession, state } from "../api.js";
 import {
-  directionsUrl, distanceLabel, esc, h, icon, prettyCategory, setupPhotoInput,
+  deedIcon, directionsUrl, distanceLabel, esc, h, icon, prettyCategory, setupPhotoInput,
   statusbar, toast,
 } from "../ui.js";
 import { go } from "../router.js";
@@ -147,9 +147,15 @@ export function renderQuest(root, { quest }) {
 }
 
 /** The submission form itself. */
-export function renderSubmit(root, { quest, checkin } = {}) {
+export async function renderSubmit(root, { quest, checkin, deedType } = {}) {
   const orgName = quest?.org_name || "";
   const measured = checkin && checkin.elapsed_minutes >= 0 ? checkin : null;
+
+  // Types come from the server so the picker, the required fields and the
+  // AI rubric can never disagree about what a deed needs.
+  const types = await api.deedTypes();
+  // A timed check-in is by definition in-person volunteering.
+  let spec = types.find((t) => t.key === (measured ? "volunteer" : deedType)) || types[0];
   root.innerHTML = `
     ${statusbar()}
     <div class="appbar">
@@ -163,27 +169,22 @@ export function renderSubmit(root, { quest, checkin } = {}) {
         <h3 style="margin-top:4px">${esc(orgName || "Log a good deed")}</h3>
       </div>
 
-      <div>
-        <h3>Add completion proof</h3>
-        <p class="muted" style="margin-top:6px">
-          Photograph what you worked on. Avoid faces and personal details.
-        </p>
-      </div>
+      ${measured ? "" : `
+        <div>
+          <h3>What kind of good deed?</h3>
+          <p class="muted" style="margin-top:6px">Each kind is checked differently.</p>
+        </div>
+        <div class="deed-grid" id="deed-grid">
+          ${types.map((t) => `
+            <button type="button" class="deed-tile" data-deed="${esc(t.key)}"
+                    aria-selected="${t.key === spec.key}">
+              <span class="deed-ico">${t.icon}</span>
+              <span class="deed-label">${esc(t.label)}</span>
+              <span class="deed-blurb">${esc(t.blurb)}</span>
+            </button>`).join("")}
+        </div>`}
 
-      <label class="dropzone" id="dropzone">
-        <input type="file" accept="image/*" capture="environment" id="photo">
-        <div class="guide" id="guide">Tap to add a photo<br><span style="font-weight:600">Fit the completed work inside</span></div>
-      </label>
-
-      <label class="field">
-        <span>Organization</span>
-        <input type="text" id="org" value="${esc(orgName)}" placeholder="e.g. Maryland Food Bank" required>
-      </label>
-
-      <label class="field">
-        <span>What did you do?</span>
-        <textarea id="desc" placeholder="Be specific — what you did, who with, what it looked like."></textarea>
-      </label>
+      <div id="deed-fields"></div>
 
       ${measured
         ? `<div class="panel panel-mint">
@@ -212,39 +213,106 @@ export function renderSubmit(root, { quest, checkin } = {}) {
       </div>
 
       <p class="err" id="formerr" hidden></p>
-      <button class="btn btn-primary" id="send">Use this photo</button>
+      <button class="btn btn-primary" id="send">Submit deed</button>
     </div>`;
 
-  const fileInput = root.querySelector("#photo");
-  const guide = root.querySelector("#guide");
-  const dropzone = root.querySelector("#dropzone");
   const errEl = root.querySelector("#formerr");
   const sendBtn = root.querySelector("#send");
+  const fieldsEl = root.querySelector("#deed-fields");
   let photoDataUrl = null;
 
   root.querySelector("[data-back]").onclick = () => history.back();
 
-  setupPhotoInput({
-    dropzone,
-    input: fileInput,
-    guide,
-    onPhoto: (dataUrl) => { photoDataUrl = dataUrl; },
-    onError: (message) => {
-      errEl.textContent = message || "";
-      errEl.hidden = !message;
-    },
+  /** Re-render the inputs for the selected deed type.
+   *  Fields are driven by the spec rather than hardcoded, so a receipt
+   *  upload never asks "how long did you stay". */
+  function renderFields() {
+    photoDataUrl = null;
+    const needsPhoto = spec.photo_required;
+    const needsTime = spec.time_required && !measured;
+    const wantsOrg = spec.key !== "kindness" && spec.key !== "advocacy";
+
+    fieldsEl.innerHTML = `
+      <div class="panel panel-mint" style="margin-bottom:var(--s3)">
+        <strong style="font-size:14px">${spec.icon} ${esc(spec.label)}</strong>
+        <p class="tiny" style="margin-top:4px">
+          ${esc(spec.evidence)} · up to ${spec.max_points} pts
+        </p>
+      </div>
+
+      <label class="dropzone" id="dropzone">
+        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" id="photo">
+        <div class="guide" id="guide">
+          ${esc(spec.evidence)}
+          <span style="display:block;font-weight:600;opacity:.75;margin-top:6px">
+            ${needsPhoto ? "Required · JPEG or PNG" : "Optional for this kind of deed"}
+          </span>
+        </div>
+      </label>
+
+      ${wantsOrg ? `
+        <label class="field" style="margin-top:var(--s3)">
+          <span>Organization or cause</span>
+          <input type="text" id="org" value="${esc(orgName)}" placeholder="e.g. Maryland Food Bank">
+        </label>` : ""}
+
+      <label class="field" style="margin-top:var(--s3)">
+        <span>${spec.key === "kindness" ? "What did you do?" : "Tell us about it"}</span>
+        <textarea id="desc" placeholder="Be specific — what you did, who for, what it looked like."></textarea>
+      </label>
+
+      ${measured ? `
+        <div class="panel panel-mint">
+          <strong style="font-size:14px">✓ ${measured.elapsed_minutes} minutes, verified</strong>
+          <p class="tiny" style="margin-top:3px">
+            Timed on site. Nothing to type in, and worth more than a self-reported shift.
+          </p>
+          <input type="hidden" id="mins" value="${measured.elapsed_minutes}">
+        </div>`
+        : needsTime ? `
+        <label class="field">
+          <span>Time spent (minutes)</span>
+          <input type="number" id="mins" min="0" max="600" step="5" value="45">
+          <p class="tiny" style="margin-top:6px">
+            Self-reported. Starting from a quest times it for you and scores higher.
+          </p>
+        </label>`
+        : `<input type="hidden" id="mins" value="0">`}
+    `;
+
+    setupPhotoInput({
+      dropzone: fieldsEl.querySelector("#dropzone"),
+      input: fieldsEl.querySelector("#photo"),
+      guide: fieldsEl.querySelector("#guide"),
+      onPhoto: (dataUrl) => { photoDataUrl = dataUrl; },
+      onError: (message) => {
+        errEl.textContent = message || "";
+        errEl.hidden = !message;
+      },
+    });
+  }
+
+  root.querySelectorAll("[data-deed]").forEach((tile) => {
+    tile.onclick = () => {
+      spec = types.find((t) => t.key === tile.dataset.deed) || spec;
+      root.querySelectorAll("[data-deed]").forEach((t) =>
+        t.setAttribute("aria-selected", String(t.dataset.deed === spec.key)));
+      errEl.hidden = true;
+      renderFields();
+    };
   });
 
+  renderFields();
+
   sendBtn.onclick = async () => {
-    const org = root.querySelector("#org").value.trim();
-    const description = root.querySelector("#desc").value.trim();
-    const minutes = parseInt(root.querySelector("#mins").value, 10);
+    const org = fieldsEl.querySelector("#org")?.value.trim() || "";
+    const description = fieldsEl.querySelector("#desc").value.trim();
+    const minutes = parseInt(fieldsEl.querySelector("#mins")?.value, 10) || 0;
 
     const problem =
-      !photoDataUrl ? "Add a photo of what you did."
-      : !org ? "Which organization was this for?"
+      spec.photo_required && !photoDataUrl ? `This kind of deed needs evidence: ${spec.evidence.toLowerCase()}.`
       : description.length < 10 ? "Add a sentence or two about what you did."
-      : !Number.isFinite(minutes) || minutes < 0 ? "Enter how many minutes you spent."
+      : spec.time_required && !measured && minutes <= 0 ? "Enter how many minutes you spent."
       : null;
     if (problem) {
       errEl.textContent = problem;
@@ -254,12 +322,13 @@ export function renderSubmit(root, { quest, checkin } = {}) {
     errEl.hidden = true;
 
     sendBtn.disabled = true;
-    sendBtn.textContent = "Checking your photo…";
+    sendBtn.textContent = "Checking…";
     try {
       const loc = await getLocation();
       const result = await api.submit({
+        deed_type: spec.key,
         org_name: org,
-        photo_url: photoDataUrl,
+        photo_url: photoDataUrl || "",
         description,
         time_spent_minutes: minutes,
         lat: loc.lat,
@@ -285,7 +354,7 @@ export function renderSubmit(root, { quest, checkin } = {}) {
       toast(msg, true);
     } finally {
       sendBtn.disabled = false;
-      sendBtn.textContent = "Use this photo";
+      sendBtn.textContent = "Submit deed";
     }
   };
 }
@@ -311,6 +380,7 @@ export function renderResult(root, { result }) {
           ${awarded ? "+" : ""}${result.points ?? 0} points
         </div>
         <div class="scorelines" style="margin-top:10px">
+          <div><span>Kind of deed</span><span>${deedIcon(result.deed_type)} ${esc(prettyCategory(result.deed_type))}</span></div>
           <div><span>Toward your tier</span><span>+${result.tier_points ?? 0}</span></div>
           <div><span>Authenticity confidence</span><span>${confidence}%</span></div>
           <div>

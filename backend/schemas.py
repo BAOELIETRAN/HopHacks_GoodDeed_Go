@@ -122,12 +122,31 @@ class CheckInOut(BaseModel):
 
 # --- submissions ----------------------------------------------------------
 
+class DeedTypeOut(BaseModel):
+    """One selectable kind of good deed, and what it asks of the user."""
+
+    key: str
+    label: str
+    icon: str
+    blurb: str
+    evidence: str
+    photo_required: bool
+    time_required: bool
+    location_required: bool
+    base_points: int
+    max_points: int
+
+
 class SubmissionCreate(BaseModel):
     """Everything in the Submission contract except user_id, which comes
     from the bearer token so a user can't submit on someone else's behalf."""
 
-    org_name: str
-    photo_url: str
+    # Which kind of deed. Drives what evidence is expected, which rubric
+    # the AI uses, and the point scale.
+    deed_type: str = "volunteer"
+    org_name: str = ""
+    # Optional: kindness and advocacy accept a description alone.
+    photo_url: str = ""
     description: str = ""
     # Ignored when checkin_id is supplied -- the measured time wins.
     time_spent_minutes: int = Field(default=0, ge=0)
@@ -158,6 +177,7 @@ class SubmissionOut(BaseModel):
     current_streak: int
     is_personal_best: bool
     verified_presence: bool = False
+    deed_type: str = "volunteer"
 
 
 # --- leaderboard ------------------------------------------------------
@@ -169,6 +189,9 @@ class LeaderboardEntry(BaseModel):
     points: int
     deed_count: int
     is_you: bool
+    # The kinds of deed behind those points, most frequent first. Shown as
+    # small icons so the board says what people did, not just how much.
+    deed_types: list[str] = []
 
 
 # --- friends ------------------------------------------------------------

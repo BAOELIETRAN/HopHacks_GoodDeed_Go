@@ -6,8 +6,21 @@ import {
   directionsUrl, distanceLabel, esc, h, icon, radiusPicker, statusbar, toast,
 } from "../ui.js";
 import { go } from "../router.js";
+import { quoteOfTheDay } from "../quotes.js";
 
 let mapInstance = null;
+
+/** The day's quote. Same for everyone, rolls over at midnight, no API. */
+function quoteCard() {
+  const q = quoteOfTheDay();
+  return `
+    <div class="pad" style="padding-top:0;padding-bottom:12px">
+      <blockquote class="quote-card">
+        <p>${esc(q.text)}</p>
+        <cite>${esc(q.who)}${q.src ? `, <span>${esc(q.src)}</span>` : ""}</cite>
+      </blockquote>
+    </div>`;
+}
 
 export async function renderMap(root) {
   const user = state.user || {};
@@ -23,6 +36,7 @@ export async function renderMap(root) {
         <span class="chip chip-yellow">★ ${user.tier_points ?? 0}</span>
       </div>
     </div>
+    ${quoteCard()}
     <div class="pad" style="padding-top:0;padding-bottom:10px" id="radius-slot"></div>
     <div id="map"></div>
     <div class="map-legend">

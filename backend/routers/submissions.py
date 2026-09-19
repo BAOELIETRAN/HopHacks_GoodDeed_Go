@@ -10,14 +10,25 @@ from ..agent_client import (
     score_submission_from_dict,
     tier_for_points,
 )
+from gooddeed_agent.deeds import DEEDS, get_deed
 from ..config import VERIFIED_PRESENCE_MULTIPLIER
 from ..database import get_db
 from ..deps import get_current_user
 from ..gamification import record_activity
-from ..schemas import SubmissionCreate, SubmissionOut
+from ..schemas import DeedTypeOut, SubmissionCreate, SubmissionOut
 from .checkins import consume_for_submission
 
 router = APIRouter(tags=["submissions"])
+
+
+@router.get("/deed-types", response_model=list[DeedTypeOut])
+def deed_types() -> list[DeedTypeOut]:
+    """The kinds of deed the app accepts, and what each one needs.
+
+    Served rather than hardcoded in the frontend so the picker, the required
+    fields and the scoring rubric can never drift apart.
+    """
+    return [DeedTypeOut(**vars(spec)) for spec in DEEDS.values()]
 
 
 @router.post("/submissions", response_model=SubmissionOut)
@@ -40,6 +51,8 @@ def create_submission(
     # A presence-verified session overrides everything the client said about
     # time and category: the server measured it, so there is no reason to
     # trust the typed value over the recorded one.
+    spec = get_deed(body.deed_type)
+
     checkin = None
     minutes = body.time_spent_minutes
     if body.checkin_id:
@@ -64,7 +77,12 @@ def create_submission(
         "lng": body.lng,
         "submitted_at": body.submitted_at,
     }
-    score = score_submission_from_dict(submission_dict, category=category, quest_multiplier=multiplier)
+    score = score_submission_from_dict(
+        submission_dict,
+        deed_type=spec.key,
+        category=category,
+        quest_multiplier=multiplier,
+    )
 
     row = m.Submission(
         user_id=user.id,
@@ -81,6 +99,7 @@ def create_submission(
         rationale=score["rationale"],
         checkin_id=checkin.id if checkin else None,
         verified_presence=checkin is not None,
+        deed_type=spec.key,
     )
     db.add(row)
     db.flush()
@@ -120,4 +139,5 @@ def create_submission(
         current_streak=user.current_streak,
         is_personal_best=is_personal_best,
         verified_presence=row.verified_presence,
+        deed_type=row.deed_type,
     )

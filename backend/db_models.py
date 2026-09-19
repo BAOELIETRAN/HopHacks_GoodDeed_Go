@@ -128,6 +128,10 @@ class Submission(Base):
     checkin_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     verified_presence: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # Which kind of good deed this was. See gooddeed_agent/deeds.py -- each
+    # type is judged by its own rubric and has its own point scale.
+    deed_type: Mapped[str] = mapped_column(String(32), default="volunteer", index=True)
+
 
 class CheckIn(Base):
     """A presence-verified volunteering session.

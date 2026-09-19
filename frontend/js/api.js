@@ -122,6 +122,12 @@ export const api = {
   stopCheckin: (id) => request(`/checkins/${id}/stop`, { method: "POST" }),
 
   // --- submissions ---------------------------------------------------------
+  deedTypes: () =>
+    withFallback(() => request("/deed-types"), [
+      { key: "volunteer", label: "Volunteered in person", icon: "🙌", blurb: "A shift at an organization",
+        evidence: "A photo of you doing the work", photo_required: true, time_required: true,
+        location_required: true, base_points: 30, max_points: 100 },
+    ]),
   submit: (payload) => request("/submissions", { method: "POST", body: payload }),
 
   // --- leaderboard ---------------------------------------------------------

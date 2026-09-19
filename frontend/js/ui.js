@@ -27,6 +27,12 @@ export const CATEGORY_ICON = {
 };
 export const icon = (category) => CATEGORY_ICON[category] || CATEGORY_ICON.other;
 
+export const DEED_ICON = {
+  volunteer: "🙌", donation_money: "💳", donation_item: "📦", fundraising: "🎽",
+  kindness: "💛", remote: "💻", advocacy: "📣", blood_donation: "🩸",
+};
+export const deedIcon = (key) => DEED_ICON[key] || DEED_ICON.volunteer;
+
 export const REPORT_ICON = {
   litter: "🗑️", illegal_dumping: "🚮", graffiti: "🎨", broken_infrastructure: "🔧",
   overgrowth: "🌳", hazard: "⚠️", abandoned_item: "📦", other: "📍",

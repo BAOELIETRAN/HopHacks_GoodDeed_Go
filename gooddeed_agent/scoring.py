@@ -111,6 +111,7 @@ def compute_points(
     time_spent_minutes: float | int | None,
     authenticity_confidence: float,
     quest_multiplier: float = 1.0,
+    deed_type: str | None = None,
 ) -> tuple[int, int]:
     """Turn a graded submission into ``(points, tier_points)``.
 
@@ -126,11 +127,27 @@ def compute_points(
     if confidence < MIN_AUTHENTICITY:
         return 0, 0
 
-    raw = base_points_for(category) + time_bonus(time_spent_minutes)
-    scaled = raw * confidence
+    # A deed type sets its own floor and ceiling. A signed petition and a
+    # morning at a shelter are both worth recognising, and obviously not
+    # worth the same; the category scale alone cannot express that.
+    if deed_type:
+        from .deeds import get_deed
 
-    tier_points = int(round(min(scaled, MAX_POINTS_PER_SUBMISSION)))
-    points = int(round(min(scaled * max(0.0, quest_multiplier), MAX_POINTS_PER_SUBMISSION)))
+        spec = get_deed(deed_type)
+        base = spec.base_points
+        cap = spec.max_points
+        # Only deeds that take time earn a time bonus -- a donation receipt
+        # has no duration, and inviting one would just invite inflation.
+        bonus = time_bonus(time_spent_minutes) if spec.time_required else 0
+    else:
+        base = base_points_for(category)
+        cap = MAX_POINTS_PER_SUBMISSION
+        bonus = time_bonus(time_spent_minutes)
+
+    scaled = (base + bonus) * confidence
+
+    tier_points = int(round(min(scaled, cap)))
+    points = int(round(min(scaled * max(0.0, quest_multiplier), cap)))
     return points, tier_points
 
 
