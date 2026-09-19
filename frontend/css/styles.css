@@ -430,6 +430,10 @@ textarea { resize: vertical; min-height: 92px; line-height: 1.5; }
   box-shadow: 0 -8px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.22);
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
+/* `display: flex` above beats the browser's own [hidden] rule, so app.js setting
+   nav.hidden on no-nav screens (forms, detail views) did nothing, and the bar sat
+   on top of their submit buttons. Desktop turns the nav into a sidebar; leave that. */
+@media (max-width: 899px) { .bottom-nav[hidden] { display: none; } }
 .bottom-nav button {
   flex: 1; border: 0; background: none; cursor: pointer; font-family: inherit;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
@@ -1187,3 +1191,96 @@ select option { background: #0f3b32; color: #fff; }
 @media (min-width: 1280px) {
   .grid-2 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+/* ---------- Photo capture ----------
+   Every photo box gets the same two visible choices (take / upload), and the
+   camera opens as a full-panel dialog inside #app, like the action sheet. */
+.photo-actions {
+  display: flex; flex-direction: column; align-items: center;
+  gap: var(--s2); margin-top: var(--s3);
+}
+.photo-actions .btn-row { width: 100%; }
+/* Two buttons share a row that can be as narrow as 280px, so a label must be able to
+   wrap (min-width: 0 lets a flex item shrink below its content) instead of pushing the
+   row past the screen edge. */
+.photo-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  min-width: 0; padding: 13px var(--s3); font-size: 14px; line-height: 1.2; text-align: center;
+}
+.photo-btn span[aria-hidden="true"] { font-size: 18px; line-height: 1; flex: none; }
+@media (max-width: 360px) {
+  .photo-btn { padding: 12px 8px; font-size: 13px; gap: 6px; }
+}
+.photo-remove { color: var(--ink-soft); font-size: 12.5px; }
+
+.cam-overlay {
+  position: absolute; inset: 0; z-index: 2000;
+  display: flex; flex-direction: column;
+  background: #02100c; color: var(--ink);
+  animation: sheet-fade .18s ease-out;
+}
+/* The overlay's own display rules would otherwise beat the [hidden] attribute. */
+.cam-overlay [hidden] { display: none !important; }
+
+.cam-top {
+  display: grid; grid-template-columns: 48px 1fr 48px; align-items: center;
+  padding: calc(var(--s3) + env(safe-area-inset-top)) var(--s3) var(--s2);
+  text-align: center;
+}
+.cam-close {
+  width: 40px; height: 40px; border-radius: 50%; cursor: pointer;
+  border: 1px solid var(--glass-border); background: var(--glass-dark);
+  color: var(--ink); font-size: 16px;
+}
+/* The stage has a definite size and clips, and the media is positioned inside it.
+   A <video> left in normal flow renders at its natural size (1280x720 on a laptop
+   webcam), overflows a short stage and paints over the shutter button. */
+.cam-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; background: #000; }
+/* `contain`, matching the preview box: what you see is the whole frame that
+   gets sent, not a cropped centre. */
+.cam-video, .cam-still { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.cam-mirror { transform: scaleX(-1); }
+.cam-status {
+  position: absolute; inset: 0; display: grid; place-items: center; margin: 0;
+  pointer-events: none; font-weight: 700; color: var(--ink-soft);
+}
+.cam-status:empty { display: none; }
+.cam-error {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  justify-content: center; gap: var(--s4); padding: var(--s6);
+  background: rgba(2, 16, 12, .94); text-align: center;
+}
+.cam-error p { margin: 0; font-weight: 700; line-height: 1.5; }
+.cam-error-actions { display: flex; flex-direction: column; gap: 10px; }
+
+.cam-controls {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s4);
+  padding: var(--s5) var(--s6) calc(var(--s5) + env(safe-area-inset-bottom));
+}
+.cam-review .btn { flex: 1; }
+.cam-shutter {
+  width: 76px; height: 76px; border-radius: 50%; cursor: pointer;
+  border: 4px solid #fff; background: rgba(255, 255, 255, .92);
+  box-shadow: inset 0 0 0 4px rgba(0, 0, 0, .35);
+}
+.cam-shutter:active:not(:disabled) { transform: scale(.94); }
+.cam-shutter:disabled { opacity: .4; cursor: default; }
+.cam-flip, .cam-spacer { width: 48px; height: 48px; }
+.cam-flip {
+  border-radius: 50%; cursor: pointer; font-size: 22px;
+  border: 1px solid var(--glass-border); background: var(--glass-dark); color: var(--ink);
+}
+.cam-close:focus-visible, .cam-shutter:focus-visible, .cam-flip:focus-visible {
+  outline: 3px solid var(--green); outline-offset: 3px;
+}
+/* On a big screen a full-window camera is unwieldy: present it as a centred modal. The
+   oversized spread shadow dims everything behind it. */
+@media (min-width: 900px) {
+  .cam-overlay {
+    inset: auto; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: min(560px, 92vw); height: min(760px, 92vh);
+    border-radius: var(--r-lg); overflow: hidden;
+    box-shadow: 0 0 0 100vmax rgba(3, 14, 11, .72), 0 30px 80px rgba(0, 0, 0, .6);
+  }
+}
+@media (prefers-reduced-motion: reduce) { .cam-overlay { animation: none; } }

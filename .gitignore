@@ -7,3 +7,6 @@ venv/
 .DS_Store
 *.db
 backend/gooddeed.db
+node_modules/
+e2e/test-results/
+e2e/.tmp/

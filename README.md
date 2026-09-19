@@ -120,7 +120,6 @@ a visible "demo data" banner.
 | Variable | Needed for | Where |
 |---|---|---|
 | `OPENAI_API_KEY` | Photo scoring, trust checks, report triage | platform.openai.com |
-| `ANTHROPIC_API_KEY` | The same, if you'd rather use Claude | console.anthropic.com |
 | `GOOGLE_MAPS_API_KEY` | Real nearby orgs | Google Cloud — **enable "Places API (New)"**, not the legacy one |
 | `DATABASE_URL` | Persistent accounts | Supabase → Database → URI → **Session pooler** |
 | `GOOGLE_CLIENT_ID` | "Sign in with Google" | Google Cloud → Credentials → OAuth client ID (Web) |
@@ -135,8 +134,17 @@ Full setup walkthrough: **[DEPLOY.md](DEPLOY.md)**.
 ## Tests
 
 ```bash
-pytest -q          # 318 tests, no network and no API keys required
+pytest -q                          # backend + agent, no network and no API keys required
+node --test "tests/js/*.test.mjs"  # frontend logic that needs no browser (photo/camera helpers)
+
+cd e2e && npm install && npx playwright test   # real browser, fake camera; boots its own backend on :8002
 ```
+
+The browser tests drive the actual app in Microsoft Edge (`channel: "msedge"` in
+`e2e/playwright.config.mjs`; change it to `chrome`, or run `npx playwright install
+chromium` and drop it). Chromium's synthetic camera stands in for hardware. The
+config pins `DATABASE_URL`, `OPENAI_API_KEY` and `GOOGLE_MAPS_API_KEY` to empty so a
+developer's real `.env` can never be reached; keep that if you edit it.
 
 Everything external sits behind a provider interface, so the suite runs
 against deterministic stubs. `tests/test_contract.py` guards the field names
@@ -170,7 +178,7 @@ says `mock`, the Maps key is missing or Places API (New) isn't enabled.
 **Every submission scores 0**
 That is usually correct — the agent rejects photos that don't match the
 description. Check the `rationale` field; it says exactly what it couldn't
-confirm. If `/health` says `"llm_provider":"mock"`, the Anthropic key is missing.
+confirm. If `/health` says `"llm_provider":"mock"`, the `OPENAI_API_KEY` is missing.
 
 **Accounts disappear after a restart**
 `/health` will say `"database":"sqlite"`. `DATABASE_URL` isn't reaching the
@@ -189,7 +197,7 @@ Cloud — exactly, with no trailing slash.
 Worth knowing before the demo, in rough priority order:
 
 1. **No rate limiting.** Anyone with the URL can sign up, and every submission
-   spends an Anthropic vision call.
+   spends an OpenAI vision call.
 2. **Rotate the API keys before going public.** The development keys were
    pasted into a chat transcript.
 3. **Render's free tier sleeps** after ~15 min idle; the next request takes
@@ -202,31 +210,28 @@ Worth knowing before the demo, in rough priority order:
    — but somebody should decide which scale is wanted.
 
 
-## Switching the LLM provider
+## The LLM
 
-The agent runs on either OpenAI or Claude. Everything above the provider
-seam -- rubrics, scoring, the four agent functions -- is identical; only
-`gooddeed_agent/providers/` differs.
+The agent runs on OpenAI (`gpt-5` by default, via the Responses API). Everything
+above the provider seam -- rubrics, scoring, the four agent functions -- talks
+to one interface, `gooddeed_agent/providers/base.py`, so the model can change
+without touching business logic.
 
 Set one key and you're done:
 
 ```bash
-OPENAI_API_KEY=sk-...        # uses gpt-5 via the Responses API
-# or
-ANTHROPIC_API_KEY=sk-ant-... # uses claude-opus-5 via the Messages API
+OPENAI_API_KEY=sk-...
 ```
 
-If both keys are set, OpenAI wins. Override with
-`GOODDEED_LLM_PROVIDER=anthropic`, and pick a specific model with
-`GOODDEED_MODEL`. A model belonging to the other provider is ignored with a
-warning rather than 404ing at request time.
+Pick a different model with `GOODDEED_MODEL` (a leftover `claude-*` name is
+ignored with a warning rather than 404ing at request time).
 
-With **no** key for the selected provider the agent falls back to
-`MockLLMProvider`, which returns plausible stub scores. The app stays usable,
-but nothing is really being judged -- check the startup log line
-(`Using OpenAI (gpt-5)` / `Using MockLLMProvider ...`) if scores look odd.
+With **no** key the agent falls back to `MockLLMProvider`, which returns
+plausible stub scores. The app stays usable, but nothing is really being
+judged -- check `/health` (`"llm_provider":"openai"` vs `"mock"`) or the
+startup log line (`Using OpenAI (gpt-5)` / `Using MockLLMProvider ...`) if
+scores look odd. A leftover `ANTHROPIC_API_KEY` is no longer read; the agent
+logs a warning if it is the only key present.
 
-Both providers do vision, hosted web search and schema-constrained JSON in a
-single request, which is what the agent functions assume. The OpenAI side
-uses the Responses API because Chat Completions has no hosted web search, and
-`trust_check` and `verify_donation_link` depend on it.
+It uses the Responses API because Chat Completions has no hosted web search,
+and `trust_check` and `verify_donation_link` depend on it.

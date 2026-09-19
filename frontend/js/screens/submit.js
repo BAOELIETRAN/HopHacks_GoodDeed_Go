@@ -232,7 +232,7 @@ export async function renderSubmit(root, { quest, checkin, deedType } = {}) {
           <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" id="photo">
           <div class="guide" id="guide">
             <span class="guide-icon">${spec.icon}</span>
-            ${needsPhoto ? "Tap to add" : "Tap to add — optional for this one"}
+            ${needsPhoto ? "Add a photo" : "Add a photo — optional for this one"}
             <span class="guide-hint">JPEG or PNG</span>
           </div>
         </label>

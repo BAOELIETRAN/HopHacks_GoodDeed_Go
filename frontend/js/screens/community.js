@@ -205,9 +205,9 @@ export function renderReportForm(root) {
       </div>
 
       <label class="dropzone" id="dropzone">
-        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment" id="photo">
+        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" id="photo">
         <div class="guide" id="guide">
-          Tap to photograph the problem
+          Add a photo of the problem
           <span style="display:block;font-weight:600;opacity:.75;margin-top:6px">
             JPEG or PNG. Show the problem clearly.
           </span>
@@ -309,8 +309,8 @@ export function renderProof(root, { report }) {
           (report.total_slots || 1) > 1 ? ` · ${report.filled_slots}/${report.total_slots} helpers` : ""}</p>
       </div>
       <label class="dropzone" id="dropzone">
-        <input type="file" accept="image/*" capture="environment" id="photo">
-        <div class="guide" id="guide">Photograph the finished work</div>
+        <input type="file" accept="image/*" id="photo">
+        <div class="guide" id="guide">Add a photo of the finished work</div>
       </label>
       <label class="field">
         <span>What did you do?</span>

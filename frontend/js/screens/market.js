@@ -180,7 +180,7 @@ function renderProof(mount, c, refresh) {
       <input type="file" accept="image/jpeg,image/png,image/webp" id="cproof">
       <div class="guide" id="cproof-guide">
         <span class="guide-icon">${PLATFORM_ICON[c.platforms[0]] || "📷"}</span>
-        Tap to add
+        Add a screenshot
         <span class="guide-hint">Your story or video, showing the link or cause</span>
       </div>
     </label>

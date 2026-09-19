@@ -16,7 +16,7 @@ try:
 except ImportError:  # python-dotenv is optional; real env vars still work
     pass
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "gooddeed.db")
+DB_PATH = os.environ.get("GOODDEED_DB_PATH") or os.path.join(os.path.dirname(__file__), "gooddeed.db")
 
 # Database. Set DATABASE_URL (Supabase, or any Postgres) in production;
 # without it we fall back to a local SQLite file so nobody needs a hosted
