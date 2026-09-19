@@ -107,6 +107,18 @@ QUERY_PACKS: dict[str, tuple[str, ...]] = {
         "museum",
         "community arts nonprofit",
     ),
+    # Small, local, often unincorporated. These rarely rank in a generic
+    # "charity" search but are most of what philanthropy actually looks like.
+    "grassroots": (
+        "mutual aid",
+        "community fridge",
+        "little free library",
+        "neighborhood association",
+        "tool library",
+        "free store",
+        "community land trust",
+        "block association",
+    ),
 }
 
 #: The default fan-out: the broadest one or two queries from every domain.
@@ -134,6 +146,8 @@ DEFAULT_QUERIES: tuple[str, ...] = (
     "volunteer organization",
     "nonprofit organization",
     "community center",
+    "mutual aid",
+    "community fridge",
 )
 
 
@@ -253,6 +267,7 @@ _QUERY_TO_CATEGORY: tuple[tuple[str, str], ...] = (
     ("after school", "youth_program"),
     ("youth", "youth_program"),
     ("mentor", "youth_program"),
+    ("tool library", "community_center"),
     ("literacy", "education"),
     ("tutoring", "education"),
     ("tutor", "education"),
@@ -287,6 +302,13 @@ _QUERY_TO_CATEGORY: tuple[tuple[str, str], ...] = (
     ("mosque", "religious"),
     ("synagogue", "religious"),
     ("temple", "religious"),
+    # Grassroots terms. "community fridge" and "free store" are food and
+    # goods respectively; the rest are neighborhood infrastructure.
+    ("little free library", "education"),
+    ("free store", "thrift_donation"),
+    ("community land trust", "community_center"),
+    ("neighborhood association", "community_center"),
+    ("block association", "community_center"),
     # Generic catch-alls -- last, so anything specific wins first.
     ("mutual aid", "community_center"),
     ("community center", "community_center"),
@@ -320,6 +342,17 @@ Set confidence to how sure you are, where 0.5 means genuinely uncertain. A \
 common, generic name with no findable web presence is low confidence, not \
 automatically illegitimate -- say so in the summary.
 
+Small is not suspicious. Most philanthropy is small: neighborhood mutual aid \
+groups, community fridges, church pantries, volunteer-run gardens. These \
+often have no 501(c)(3) status, no press coverage, and nothing but a Facebook \
+page or a flyer -- that is normal, not a red flag. Judge whether the thing \
+exists and helps people, not whether it is large, incorporated or well known. \
+A verifiable local group with a modest footprint should score legit=true.
+
+Do set legit=false for an organization that is real but not philanthropic -- \
+a for-profit business, a private contractor, a government office with no \
+volunteer program -- and say which it is.
+
 Never invent citations or facts you did not find. Keep the summary under 45 \
 words and state what the evidence actually was."""
 
@@ -339,40 +372,52 @@ def categorize(types: Sequence[str], matched_query: str = "", name: str = "") ->
     return "other"
 
 
+#: Below this many reviews we treat an org as grassroots: a neighborhood
+#: garden, a mutual aid group, a church pantry. Small is not suspicious.
+GRASSROOTS_REVIEW_THRESHOLD = 25
+
+
 def heuristic_legitimacy(place: dict[str, Any]) -> float:
-    """Cheap legitimacy estimate from Places metadata alone.
+    """Cheap estimate of whether an org is *real*, not whether it is *famous*.
 
-    Used when web verification is off (the default, for speed). Starts at a
-    neutral 0.5 and moves on review volume, review quality, and whether there
-    is a website.
+    Used when web verification is off (the default, for speed).
 
-    Permanent closure is handled separately, as a hard floor rather than a
-    penalty: a beloved food bank that shut down last year still has hundreds
-    of five-star reviews, and no amount of good reputation should put a closed
-    building back on the map.
+    The distinction matters for a philanthropy app. An earlier version gave
+    +0.20 for 500+ reviews and -0.10 for under 5, a 0.30 spread that made
+    review count the dominant term -- so a huge institution always outranked
+    the neighborhood community fridge, and half the orgs discovered never
+    reached the map. Review count is now weak, saturating evidence: twenty
+    reviews confirm a place exists about as well as nine hundred do. A new or
+    tiny org is *unknown*, never *illegitimate*, so a low count is never a
+    penalty.
+
+    Permanent closure is the one hard gate: a beloved food bank that shut
+    down last year still has hundreds of five-star reviews, and no amount of
+    reputation should put a closed building back on the map.
     """
     status = (place.get("business_status") or "").upper()
     if status == "CLOSED_PERMANENTLY":
         return 0.0
 
-    score = 0.5
+    # A Places listing at all is weak evidence the place exists.
+    score = 0.55
 
+    # Evidence of a real operation, saturating fast and never negative.
     count = place.get("rating_count") or 0
-    if count >= 500:
-        score += 0.20
-    elif count >= 100:
-        score += 0.15
-    elif count >= 25:
+    if count >= 20:
+        score += 0.12
+    elif count >= 5:
         score += 0.08
-    elif count < 5:
-        score -= 0.10
+    elif count >= 1:
+        score += 0.04
 
+    # Reputation. Only a genuinely bad record counts against an org.
     rating = place.get("rating")
     if rating is not None:
         if rating >= 4.5:
             score += 0.10
         elif rating >= 4.0:
-            score += 0.05
+            score += 0.06
         elif rating < 3.0:
             score -= 0.15
 
@@ -383,6 +428,12 @@ def heuristic_legitimacy(place: dict[str, Any]) -> float:
         score -= 0.15
 
     return round(max(0.0, min(1.0, score)), 2)
+
+
+def is_grassroots(place: dict[str, Any]) -> bool:
+    """True for small, local organizations -- the ones an app about
+    philanthropy should surface, not bury."""
+    return (place.get("rating_count") or 0) < GRASSROOTS_REVIEW_THRESHOLD
 
 
 def trust_check(
@@ -434,45 +485,79 @@ def trust_check(
 
 
 def _interleave_by_category(
-    opportunities: list[dict[str, Any]], max_results: int
+    entries: list[tuple[dict[str, Any], bool]], max_results: int
 ) -> list[dict[str, Any]]:
-    """Round-robin across categories so the map is not all one thing.
+    """Rank for a map, not for a leaderboard.
 
-    A pure legitimacy sort is the wrong ranking for a map-based game: big
-    well-reviewed food banks sweep the top of every list and the player never
-    sees the animal shelter two blocks away. This takes the best remaining org
-    from each category in turn, so variety survives truncation while the
-    strongest org within each category still leads it.
+    Takes ``(opportunity, is_grassroots)`` pairs and applies two passes of
+    mixing:
 
-    Categories are visited in order of their best-scoring member, so the
-    single most legitimate org overall is still first.
+    1. **Across categories.** A pure legitimacy sort means big well-reviewed
+       food banks sweep the top of the list and the player never sees the
+       animal shelter two blocks away. Categories are visited round-robin, in
+       order of their best-scoring member, so the single strongest org
+       overall still leads.
+    2. **Within a category, across org size.** Even with popularity mostly
+       removed from the score, established orgs still edge out small ones, so
+       each category alternates grassroots and established. Philanthropy is
+       mostly small organizations; a map that only shows the famous ones has
+       the wrong idea of the subject.
+
+    Repeat org names are pushed later within each sub-list, so one thrift
+    chain's four branches cannot take every slot in their category. All four
+    are still returned -- they are separate map pins.
     """
-    buckets: dict[str, list[dict[str, Any]]] = {}
-    for opportunity in opportunities:
-        buckets.setdefault(opportunity["category"], []).append(opportunity)
+    buckets: dict[str, list[tuple[dict[str, Any], bool]]] = {}
+    for entry in entries:
+        buckets.setdefault(entry[0]["category"], []).append(entry)
 
-    # Within a bucket, push repeat org names later. Chains like a thrift shop
-    # with four branches are all legitimate, separate map pins, but letting one
-    # name take every slot in its category defeats the point of interleaving.
-    # A stable sort on "how many times have we seen this name already" keeps
-    # legitimacy order intact among first appearances.
-    for bucket in buckets.values():
+    def demote_repeat_names(
+        group: list[tuple[dict[str, Any], bool]]
+    ) -> list[tuple[dict[str, Any], bool]]:
         counts: dict[str, int] = {}
         ranked = []
-        for opportunity in bucket:
-            name = opportunity["org_name"].casefold()
-            ranked.append((counts.get(name, 0), opportunity))
+        for entry in group:
+            name = entry[0]["org_name"].casefold()
+            ranked.append((counts.get(name, 0), entry))
             counts[name] = counts.get(name, 0) + 1
-        bucket[:] = [opportunity for _rank, opportunity in sorted(ranked, key=lambda r: r[0])]
+        return [entry for _rank, entry in sorted(ranked, key=lambda r: r[0])]
 
-    # Inputs arrive sorted by legitimacy, so each bucket is already ordered.
-    order = sorted(buckets, key=lambda c: -buckets[c][0]["legitimacy_score"])
+    def mix_by_size(
+        group: list[tuple[dict[str, Any], bool]], grassroots_first: bool
+    ) -> list[dict[str, Any]]:
+        grassroots = demote_repeat_names([e for e in group if e[1]])
+        established = demote_repeat_names([e for e in group if not e[1]])
+        first, second = (
+            (grassroots, established) if grassroots_first else (established, grassroots)
+        )
+        mixed: list[dict[str, Any]] = []
+        for index in range(max(len(first), len(second))):
+            if index < len(first):
+                mixed.append(first[index][0])
+            if index < len(second):
+                mixed.append(second[index][0])
+        return mixed
+
+    # Order categories by their strongest member, so the best org overall
+    # still leads the whole list.
+    order = sorted(
+        buckets,
+        key=lambda c: -max(e[0]["legitimacy_score"] for e in buckets[c]),
+    )
+
+    # Alternate which side leads, category by category. Without this the
+    # category round-robin shows every category's established org before any
+    # grassroots one, pushing small orgs past the end of a short list.
+    mixed_buckets = {
+        category: mix_by_size(buckets[category], grassroots_first=(position % 2 == 1))
+        for position, category in enumerate(order)
+    }
 
     interleaved: list[dict[str, Any]] = []
     while len(interleaved) < max_results:
         progressed = False
         for category in order:
-            bucket = buckets[category]
+            bucket = mixed_buckets[category]
             if not bucket:
                 continue
             interleaved.append(bucket.pop(0))
@@ -584,7 +669,7 @@ def find_opportunities(
                 scored[index] = (round(0.75 * verified + 0.25 * heuristic, 2), place)
         scored.sort(key=lambda item: -item[0])
 
-    opportunities: list[dict[str, Any]] = []
+    opportunities: list[tuple[dict[str, Any], bool]] = []
     for legitimacy, place in scored:
         if legitimacy < min_legitimacy:
             continue
@@ -603,10 +688,10 @@ def find_opportunities(
             # Extra key, never a renamed one -- consumers expecting the bare
             # seven-field contract are unaffected.
             record["description"] = place.get("web_summary", "")
-        opportunities.append(record)
+        opportunities.append((record, is_grassroots(place)))
 
     # Rank last, over everything that qualified, so diversification has the
     # full candidate pool to draw from rather than a pre-truncated list.
     if diversify:
         return _interleave_by_category(opportunities, max_results)
-    return opportunities[:max_results]
+    return [record for record, _grassroots in opportunities[:max_results]]

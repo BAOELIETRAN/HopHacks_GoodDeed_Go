@@ -64,6 +64,23 @@ find_opportunities(lat, lng, 5, packs=["all"], max_queries=60)  # everything
 find_opportunities(lat, lng, 5, queries=["beach cleanup"])      # your own
 ```
 
+#### Small organizations
+
+Most philanthropy is small, so discovery is tuned for it. `legitimacy_score`
+measures whether an org is **real**, not whether it is **famous**: review
+count is weak, saturating evidence (20 reviews confirm existence about as well
+as 2000), and a low count is never a penalty — a new or tiny org is *unknown*,
+not *illegitimate*. A nine-review community garden scores within 0.04 of a
+1400-review institution, and outranks a big badly-reviewed one.
+
+Ranking then alternates grassroots (under 25 reviews) and established orgs
+within each category, so small groups appear near the top rather than past the
+end of the list. There's a `grassroots` query pack too — mutual aid, community
+fridges, little free libraries, tool libraries, neighborhood associations.
+
+On live Baltimore data this moved the median org from 137 reviews to 46, and
+grassroots representation from 1-in-15 to 7-in-20.
+
 Results are **interleaved across categories** by default, so the map shows a
 mix rather than 20 food banks — a strict legitimacy sort buries every smaller
 category. Repeat org names are pushed later within a category too, so one
