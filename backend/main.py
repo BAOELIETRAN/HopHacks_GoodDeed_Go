@@ -21,7 +21,8 @@ from .config import ALLOWED_ORIGINS
 from .database import Base, engine
 from .migrate import ensure_schema, relax_password_columns
 from .routers import (
-    auth, checkins, friends, leaderboard, quests, reports, social, submissions, tasks,
+    auth, checkins, friends, leaderboard, quests, recap, reports, social, submissions,
+    tasks,
 )
 
 Base.metadata.create_all(bind=engine)
@@ -69,6 +70,7 @@ app.include_router(quests.router)
 app.include_router(checkins.router)
 app.include_router(tasks.router)
 app.include_router(social.router)
+app.include_router(recap.router)
 app.include_router(submissions.router)
 app.include_router(leaderboard.router)
 app.include_router(friends.router)

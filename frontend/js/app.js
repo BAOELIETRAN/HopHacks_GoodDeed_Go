@@ -8,6 +8,7 @@ import { renderQuest, renderResult, renderSubmit } from "./screens/submit.js";
 import { renderActive, teardownActive } from "./screens/active.js";
 import { renderToday } from "./screens/today.js";
 import { renderFeed } from "./screens/feed.js";
+import { maybeShowRecap } from "./recap.js";
 import { renderQuests } from "./screens/quests.js";
 import { renderLeaderboard } from "./screens/leaderboard.js";
 import { renderCommunity, renderProof, renderReportForm } from "./screens/community.js";
@@ -62,3 +63,9 @@ setNavigateHook((name, route) => {
 
 buildNav();
 dispatch();
+
+// Weekly recap, once per ISO week, after the first screen has painted so it
+// never delays the app's first render. Signed-out users never see it.
+if (state.token) {
+  setTimeout(() => { maybeShowRecap(); }, 1200);
+}

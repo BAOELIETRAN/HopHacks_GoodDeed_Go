@@ -504,6 +504,51 @@ textarea { resize: vertical; min-height: 92px; line-height: 1.5; }
 }
 .list-row:last-child { border-bottom: 0; }
 
+/* ---------- Weekly recap ---------- */
+.recap-overlay {
+  position: absolute; inset: 0; z-index: 1800;
+  display: grid; place-items: center; padding: var(--s5);
+  background: rgba(3, 14, 11, .68);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  animation: recap-in .25s ease-out;
+}
+@keyframes recap-in { from { opacity: 0; } to { opacity: 1; } }
+
+.recap-card {
+  width: 100%; max-width: 360px; text-align: center;
+  background: var(--glass-strong); border: 1px solid var(--glass-border-strong);
+  border-radius: var(--r-lg); padding: var(--s6) var(--s5);
+  box-shadow: var(--glass-shadow-lg);
+  -webkit-backdrop-filter: var(--blur-heavy); backdrop-filter: var(--blur-heavy);
+  animation: recap-rise .32s cubic-bezier(.2, .9, .3, 1);
+}
+@keyframes recap-rise {
+  from { transform: translateY(14px) scale(.97); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+
+.recap-headline { margin-top: 6px; }
+.recap-sub { font-size: 14px; color: var(--ink-soft); line-height: 1.5; margin-top: 8px; }
+
+.recap-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s2);
+  margin: var(--s5) 0 var(--s4);
+}
+.recap-stats div { display: flex; flex-direction: column; gap: 2px; }
+.recap-stats strong { font-size: 24px; font-weight: 800; letter-spacing: -.5px; }
+.recap-stats span { font-size: 11px; color: var(--ink-faint); font-weight: 700; }
+
+.recap-line { font-size: 13px; color: var(--ink-soft); margin-top: 6px; font-weight: 700; }
+
+.recap-tier {
+  margin: var(--s5) 0; padding-top: var(--s4);
+  border-top: 1px solid var(--glass-border); text-align: left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recap-overlay, .recap-card { animation: none !important; }
+}
+
 /* ---------- Submission form ----------
    One vertical rhythm for every section, and one shape language: inputs,
    textarea, dropzone and buttons all share the same radius, border and

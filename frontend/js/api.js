@@ -114,6 +114,8 @@ export const api = {
   quests: (lat, lng, radius) =>
     withFallback(() => request(`/quests?${qs({ lat, lng, radius })}`), mock.MOCK_QUESTS),
 
+  weeklyRecap: () => withFallback(() => request("/recap/weekly"), null),
+
   // --- friends activity feed ----------------------------------------------
   feed: (since) =>
     withFallback(() => request(since ? `/feed?since=${encodeURIComponent(since)}` : "/feed"), []),

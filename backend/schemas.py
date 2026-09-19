@@ -274,6 +274,34 @@ class CommentIn(BaseModel):
     text: str = Field(min_length=1, max_length=280)
 
 
+# --- weekly recap ---------------------------------------------------------
+
+class WeeklyRecapOut(BaseModel):
+    """Last seven days, summarised.
+
+    A zero week is a normal outcome, not an error: `deed_count == 0` with
+    an encouraging `headline` is the expected shape, and the client must not
+    treat it as an empty state to hide.
+    """
+
+    week_start: str
+    week_end: str
+    deed_count: int
+    points: int
+    micro_deed_count: int
+    best_day: Optional[str]          # ISO date with the most points
+    top_deed_type: Optional[str]
+    tier: str
+    tier_points: int
+    points_to_next_tier: Optional[int]
+    tier_changed: bool               # crossed a tier during the week
+    current_streak: int
+    friend_rank: Optional[int]       # position among friends this week
+    friend_count: int
+    headline: str                    # one line, written server-side
+    subline: str
+
+
 # --- leaderboard ------------------------------------------------------
 
 class LeaderboardEntry(BaseModel):
