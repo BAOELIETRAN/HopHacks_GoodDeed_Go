@@ -14,7 +14,7 @@ import sys
 sys.path.insert(0, ".")
 
 from backend import db_models as m
-from backend.database import SessionLocal, engine
+from backend.database import SessionLocal
 
 DEMO_EMAILS = [
     "lena@demo.dev", "theo@demo.dev", "ana@demo.dev",
