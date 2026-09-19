@@ -183,12 +183,37 @@ above.
 
 ```bash
 ./run.sh                        # start the app
-./run.sh --seed                 # ...with demo data loaded first
-python3 scripts/seed_demo.py    # 6 users, submissions, reports
-python3 scripts/wipe_demo.py    # remove seeded accounts
-python3 scripts/wipe_demo.py --all   # remove EVERY account and report
+./run.sh --seed                 # ...with demo data wiped and reloaded first
+python3 scripts/seed_demo.py    # wipe + reseed the demo dataset, then verify it (see "Demo day")
+python3 scripts/verify_demo.py  # read-only: re-check what is in the database
+python3 scripts/wipe_demo.py    # remove the demo accounts only (real signups are untouched)
+python3 scripts/wipe_demo.py --all --yes   # remove EVERY account and report
 python3 -m gooddeed_agent       # exercise the AI agent on its own
 ```
+
+---
+
+## Demo day
+
+`python3 scripts/seed_demo.py` wipes the demo accounts (anything `@demo.dev`) and rebuilds
+a full dataset in whatever database `DATABASE_URL` points at: 14 people across all three
+tiers, ten days of deeds with streaks, a two-team leaderboard, community jobs in every
+state, Boost campaigns and store items. It is idempotent, leaves real signups alone, and
+ends by reading everything back from the database and printing a table of logins.
+
+Every demo password is `demo1234`. Run it shortly before presenting: the data is dated
+relative to *now*, and a claimed job's 3-hour timer starts at the seed.
+
+| Account | Use it to show |
+|---|---|
+| `lena@demo.dev` | Gold, top of the week, 12-day streak. Has a job waiting on her to confirm: do it live and both people are credited |
+| `ana@demo.dev` | Silver, another job waiting on her confirmation |
+| `omar@demo.dev` | A claimed job with the 3-hour timer running |
+| `sam@demo.dev` | Bronze, 8 points from Silver: a live tier-up |
+| `newbie@demo.dev` | A fresh account with no team. Better still, a judge makes their own and joins team code `HOPHACKS` |
+
+New signups have no team, so their leaderboard and feed show only themselves until they
+enter `HOPHACKS` (Profile > Join a team).
 
 ---
 

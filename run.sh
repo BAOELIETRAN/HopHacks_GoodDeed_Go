@@ -4,7 +4,7 @@
 # and production behave identically.
 #
 #   ./run.sh           start
-#   ./run.sh --seed    reseed demo data first
+#   ./run.sh --seed    wipe and reseed the demo data first (see scripts/seed_demo.py)
 #
 # Ctrl+C stops it.
 
@@ -47,7 +47,9 @@ cat <<EOF
   App        http://localhost:$PORT
   API docs   http://localhost:$PORT/docs
 
-  Demo login lena@demo.dev / demo1234   (run with --seed if that fails)
+  Demo logins: lena@demo.dev (Gold), ana@demo.dev (Silver), sam@demo.dev (Bronze),
+  newbie@demo.dev (fresh account). Every password is demo1234.
+  Not there? Run ./run.sh --seed. The seed prints the full table of accounts.
 
   On your phone, same wifi: http://$(ipconfig getifaddr en0 2>/dev/null || echo "<your-ip>"):$PORT
 
