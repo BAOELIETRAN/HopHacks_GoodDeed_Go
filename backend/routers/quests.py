@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import logging
 import threading
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import insert
 from sqlalchemy.orm import Session as DbSession
 
 from .. import db_models as m
@@ -67,15 +69,29 @@ def _refresh_in_background(key: str, lat: float, lng: float, radius: float) -> N
 
 
 def _replace_cache(db: DbSession, key: str, opportunities: list[dict]) -> None:
+    """Swap the cached rows for this key in as few round trips as possible.
+
+    A 25-mile search caches 60 rows. Inserting them one ORM object at a time
+    cost 1.5s against Supabase -- more than the Google fan-out that produced
+    them. A single bulk insert is one round trip.
+    """
     db.query(m.Opportunity).filter(m.Opportunity.cache_key == key).delete()
-    db.add_all([
-        m.Opportunity(
-            org_name=o["org_name"], address=o["address"], lat=o["lat"], lng=o["lng"],
-            category=o["category"], legitimacy_score=o["legitimacy_score"],
-            quest_type=o["quest_type"], cache_key=key,
-        )
-        for o in opportunities
-    ])
+    if not opportunities:
+        return
+    now = datetime.now(timezone.utc)
+    db.execute(
+        insert(m.Opportunity),
+        [
+            {
+                "id": uuid.uuid4().hex,
+                "org_name": o["org_name"], "address": o["address"],
+                "lat": o["lat"], "lng": o["lng"], "category": o["category"],
+                "legitimacy_score": o["legitimacy_score"],
+                "quest_type": o["quest_type"], "cache_key": key, "cached_at": now,
+            }
+            for o in opportunities
+        ],
+    )
 
 
 @router.get("/quests", response_model=list[OpportunityOut])
@@ -105,9 +121,42 @@ def get_quests(
 
     opportunities = find_opportunities(lat, lng, radius, max_results=_cap_for(radius))
 
-    db.query(m.Opportunity).filter(m.Opportunity.cache_key == key).delete()
-    rows = [
-        m.Opportunity(
+    # Answer from what we already have in memory, and persist the cache off
+    # the response path. Writing 60 rows to a hosted Postgres took longer
+    # than the Google fan-out that produced them, and the user is waiting on
+    # a map, not on our cache being warm.
+    _cache_in_background(key, opportunities)
+    return _sorted_dicts(opportunities, lat, lng)
+
+
+
+def _cache_in_background(key: str, opportunities: list[dict]) -> None:
+    """Persist a fresh result set without making the caller wait for it."""
+    if not opportunities:
+        return
+
+    def run() -> None:
+        db = SessionLocal()
+        try:
+            _replace_cache(db, key, opportunities)
+            db.commit()
+        except Exception:
+            log.exception("Caching quests for %s failed", key)
+            db.rollback()
+        finally:
+            db.close()
+
+    threading.Thread(target=run, name=f"quest-cache-{key}", daemon=True).start()
+
+
+def _sorted_dicts(opportunities: list[dict], lat: float, lng: float) -> list[OpportunityOut]:
+    """Shape agent dicts straight into the response, skipping the DB.
+
+    The rows we just fetched are the same rows we would read back; going via
+    Postgres only to re-read them is a round trip for nothing.
+    """
+    out = [
+        OpportunityOut(
             org_name=o["org_name"],
             address=o["address"],
             lat=o["lat"],
@@ -115,13 +164,14 @@ def get_quests(
             category=o["category"],
             legitimacy_score=o["legitimacy_score"],
             quest_type=o["quest_type"],
-            cache_key=key,
+            verified=o["legitimacy_score"] >= VERIFIED_LEGITIMACY_THRESHOLD,
+            estimated_points=estimate_points(o["category"], o["quest_type"]),
+            distance_km=round(haversine_km(lat, lng, o["lat"], o["lng"]), 2),
         )
         for o in opportunities
     ]
-    db.add_all(rows)
-    db.commit()
-    return [_to_out(row, lat, lng) for row in rows]
+    out.sort(key=lambda o: o.distance_km)
+    return out
 
 
 def _to_out(row: m.Opportunity, requester_lat: float, requester_lng: float) -> OpportunityOut:
