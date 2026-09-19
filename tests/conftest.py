@@ -13,6 +13,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 os.environ.setdefault("GOODDEED_USE_MOCKS", "1")
 
+# Keep the suite hermetic: if the developer running it has a real .env with
+# live keys, it must not leak into tests that assert on provider selection.
+import gooddeed_agent.config as _config  # noqa: E402
+
+_config._dotenv_loaded = True
+
 from gooddeed_agent.providers import MockLLMProvider, MockPlacesProvider  # noqa: E402
 
 # A 1x1 PNG -- smallest thing that survives magic-byte sniffing.

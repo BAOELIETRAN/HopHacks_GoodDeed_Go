@@ -155,8 +155,12 @@ it's one less process to keep running during the demo.
 ## Going live
 
 ```bash
-cp .env.example .env
+cp .env.example .env     # then fill in the two keys, no quotes needed
 ```
+
+`.env` is loaded automatically (it needs `python-dotenv`, which is in
+`requirements.txt`). Exported environment variables take precedence over the
+file. `.env` is gitignored — never commit it.
 
 | Variable | Effect |
 |---|---|

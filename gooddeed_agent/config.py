@@ -10,8 +10,11 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 log = logging.getLogger("gooddeed_agent")
+
+_dotenv_loaded = False
 
 # Claude model used for every LLM call. Opus 5 handles vision, web search and
 # structured output in one request.
@@ -24,6 +27,31 @@ WEB_SEARCH_TOOL_TYPE = "web_search_20260209"
 # Server-side refusal fallback: if a safety classifier declines a request,
 # Anthropic reroutes it instead of handing us an empty response.
 REFUSAL_FALLBACK_BETA = "server-side-fallback-2026-07-01"
+
+
+def _load_dotenv_once() -> None:
+    """Load a ``.env`` from the project root, if one exists.
+
+    Values already in the real environment win, so an exported key always
+    beats the file. python-dotenv is optional: without it, exported
+    environment variables still work and we just skip the file.
+    """
+    global _dotenv_loaded
+    if _dotenv_loaded:
+        return
+    _dotenv_loaded = True
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        env_path = Path(__file__).resolve().parent.parent / ".env"
+        if env_path.exists():
+            log.warning(
+                "Found %s but python-dotenv is not installed, so it was ignored. "
+                "Run 'pip install python-dotenv' or export the variables instead.",
+                env_path,
+            )
+        return
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -59,6 +87,7 @@ def load_settings() -> Settings:
     Deliberately not cached: teammates set keys in a ``.env`` loaded after
     import, and a hot-reloading server should pick that up.
     """
+    _load_dotenv_once()
     return Settings(
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY") or None,
         google_maps_api_key=(

@@ -1,6 +1,7 @@
 # GoodDeed Go - AI agent layer
 anthropic>=0.115.0
 requests>=2.31.0
+python-dotenv>=1.0.0   # reads your .env file
 
 # Optional: only needed if you run the HTTP wrapper in gooddeed_agent/service.py
 fastapi>=0.110.0
