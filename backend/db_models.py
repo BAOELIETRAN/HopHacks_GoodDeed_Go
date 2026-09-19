@@ -59,8 +59,16 @@ class User(Base):
 
     # Cumulative tier_points across all submissions -- what Bronze/Silver/Gold
     # is computed from. Deliberately excludes quest multipliers.
+    # THE balance. Every point-earning path in the app writes here and
+    # nowhere else, and the tier ladder and leaderboard read it unchanged.
     tier_points: Mapped[int] = mapped_column(Integer, default=0)
     tier: Mapped[str] = mapped_column(String(16), default="Bronze")
+
+    # The slice of tier_points currently held against open campaign
+    # bounties. Not a second currency: available = tier_points -
+    # escrow_points, and the two always sum back to the total. Escrow is a
+    # hold, not a spend, so it never changes anyone's tier by itself.
+    escrow_points: Mapped[int] = mapped_column(Integer, default=0)
 
     # Consecutive-day activity streak (Figma: "13-day streak", "🔥12").
     # Advances at most once per calendar day (UTC), on any verified
@@ -265,6 +273,70 @@ class ReportHelper(Base):
     report_id: Mapped[str] = mapped_column(String(32), ForeignKey("reports.id"), index=True)
     user_id: Mapped[str] = mapped_column(String(32), ForeignKey("users.id"), index=True)
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class Campaign(Base):
+    """A paid request to promote a real donation drive.
+
+    Someone offers points for others to share their cause on a social
+    platform. The bounty is held in escrow from the moment it is posted, so
+    a campaign can never promise points its poster no longer has.
+    """
+
+    __tablename__ = "campaigns"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    poster_id: Mapped[str] = mapped_column(String(32), ForeignKey("users.id"), index=True)
+
+    title: Mapped[str] = mapped_column(String(200))
+    donation_url: Mapped[str] = mapped_column(String(1024))
+    note: Mapped[str] = mapped_column(Text, default="")
+
+    # Comma-separated from PLATFORMS; the poster may accept several.
+    platforms: Mapped[str] = mapped_column(String(120))
+
+    bounty: Mapped[int] = mapped_column(Integer)
+
+    # open | claimed | done | cancelled | expired
+    status: Mapped[str] = mapped_column(String(16), default="open", index=True)
+    claimed_by: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("users.id"), nullable=True, index=True
+    )
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+
+    # What the link check concluded, kept so the poster can see why a
+    # campaign was rejected rather than just that it was.
+    link_ok: Mapped[bool] = mapped_column(Boolean, default=False)
+    link_org: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    link_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    proof_photo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    proof_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class PointsTransaction(Base):
+    """An auditable record of points moving between two people.
+
+    Balances alone cannot answer "where did those points go", and a
+    marketplace that moves value between users needs to be able to answer
+    that. Every escrow, payout and refund writes a row here.
+    """
+
+    __tablename__ = "points_transactions"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    # escrow | payout | refund
+    kind: Mapped[str] = mapped_column(String(16), index=True)
+    campaign_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    from_user_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    to_user_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    amount: Mapped[int] = mapped_column(Integer)
+    note: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
 
 
 class Opportunity(Base):

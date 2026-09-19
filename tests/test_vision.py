@@ -128,10 +128,30 @@ class TestScoreSubmissionMath:
 
 
 class TestScoreSubmissionRobustness:
-    @pytest.mark.parametrize("minutes", [0, None])
-    def test_zero_or_missing_time_still_scores_the_visit(self, photo_bytes, minutes):
+    @pytest.mark.parametrize("minutes", [0, None, 9])
+    def test_a_visit_under_ten_minutes_scores_nothing(self, photo_bytes, minutes):
+        """Time on site gates the base points for deeds that are about
+        being somewhere. Under ten minutes you did not really do it."""
         result = score_submission(photo_bytes, GOOD_DESCRIPTION, "Org", minutes, llm=_StubLLM())
-        assert result["points"] == 30  # base only, no time bonus
+        assert result["points"] == 0
+        assert result["tier_points"] == 0
+
+    @pytest.mark.parametrize(
+        "minutes,expected_at_least", [(10, 1), (20, 10), (45, 20), (120, 30)]
+    )
+    def test_longer_visits_earn_more_but_the_ramp_is_generous(
+        self, photo_bytes, minutes, expected_at_least
+    ):
+        result = score_submission(photo_bytes, GOOD_DESCRIPTION, "Org", minutes, llm=_StubLLM())
+        assert result["points"] >= expected_at_least
+
+    def test_untimed_deed_types_are_not_gated(self, photo_bytes):
+        """A donation receipt has no duration; the gate must not apply."""
+        result = score_submission(
+            photo_bytes, "Donated to the food bank.", "Food Bank", 0,
+            deed_type="donation_money", llm=_StubLLM(likely_category="other"),
+        )
+        assert result["points"] > 0
 
     def test_unreadable_photo_is_a_friendly_zero_not_a_crash(self, llm):
         result = score_submission("/no/such/file.jpg", GOOD_DESCRIPTION, "Org", 60, llm=llm)

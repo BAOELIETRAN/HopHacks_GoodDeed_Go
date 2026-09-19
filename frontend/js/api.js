@@ -114,10 +114,16 @@ export const api = {
   quests: (lat, lng, radius) =>
     withFallback(() => request(`/quests?${qs({ lat, lng, radius })}`), mock.MOCK_QUESTS),
 
-  teamImpact: () => withFallback(() => request("/team/impact"), null),
-  setCause: (cause_key) => request("/team/cause", { method: "POST", body: { cause_key } }),
-
   weeklyRecap: () => withFallback(() => request("/recap/weekly"), null),
+
+  // --- campaign marketplace -----------------------------------------------
+  campaigns: (mine) => withFallback(() => request(`/campaigns${mine ? "?mine=true" : ""}`), []),
+  wallet: () => withFallback(() => request("/wallet"), null),
+  createCampaign: (payload) => request("/campaigns", { method: "POST", body: payload }),
+  claimCampaign: (id) => request(`/campaigns/${id}/claim`, { method: "POST" }),
+  campaignProof: (id, photo_url, note) =>
+    request(`/campaigns/${id}/proof`, { method: "POST", body: { photo_url, note } }),
+  cancelCampaign: (id) => request(`/campaigns/${id}/cancel`, { method: "POST" }),
 
   // --- friends activity feed ----------------------------------------------
   feed: (since) =>

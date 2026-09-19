@@ -48,11 +48,13 @@ from .scoring import (
     tier_for_points,
     time_bonus,
 )
+from .campaigns import PLATFORMS, verify_donation_link
 from .vision import (
     REPORT_CATEGORIES,
     classify_report,
     classify_report_from_dict,
     score_submission,
+    score_campaign_proof,
     score_submission_from_dict,
 )
 
@@ -64,6 +66,9 @@ __all__ = [
     "score_submission",
     "trust_check",
     "classify_report",
+    "verify_donation_link",
+    "score_campaign_proof",
+    "PLATFORMS",
     # Data shapes
     "Opportunity",
     "ScoreResult",

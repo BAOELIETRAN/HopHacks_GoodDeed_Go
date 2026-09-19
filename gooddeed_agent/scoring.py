@@ -59,6 +59,30 @@ MONTHLY_CATEGORIES = frozenset(
 
 # --- Economy knobs ----------------------------------------------------------
 MINUTES_PER_TIME_POINT = 10
+
+# Time actually spent gates the base points for deeds that are about being
+# somewhere. Under ten minutes you did not really do the thing, so it scores
+# nothing; past that the ramp is deliberately generous, because a short but
+# real shift is still a real shift and arguing over minutes is not what this
+# app is for.
+TIME_GATE_MINUTES = 10
+_TIME_RAMP: tuple[tuple[int, float], ...] = (
+    (10, 0.0),    # under 10 minutes -> nothing
+    (20, 0.55),
+    (45, 0.80),
+    (10**9, 1.0),  # 45 minutes or more -> full value
+)
+
+
+def time_factor(minutes: float | int | None) -> float:
+    """How much of the base points a stay of this length earns, 0.0-1.0."""
+    m = max(0, int(minutes or 0))
+    if m < TIME_GATE_MINUTES:
+        return 0.0
+    for threshold, factor in _TIME_RAMP:
+        if m < threshold:
+            return factor
+    return 1.0
 MAX_TIME_BONUS = 30          # reached at 300 minutes
 MAX_POINTS_PER_SUBMISSION = 100
 # Below this authenticity confidence the submission earns nothing. Set low
@@ -143,6 +167,17 @@ def compute_points(
         base = base_points_for(category)
         cap = MAX_POINTS_PER_SUBMISSION
         bonus = time_bonus(time_spent_minutes)
+
+    # For deeds that are about time on site, a very short stay earns
+    # nothing however good the photo is.
+    if deed_type:
+        from .deeds import get_deed as _get
+
+        if _get(deed_type).time_required:
+            factor = time_factor(time_spent_minutes)
+            if factor == 0.0:
+                return 0, 0
+            base = int(round(base * factor))
 
     scaled = (base + bonus) * confidence
 

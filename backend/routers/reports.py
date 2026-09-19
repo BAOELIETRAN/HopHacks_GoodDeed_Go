@@ -14,7 +14,7 @@ from ..agent_client import (
     score_submission_from_dict,
     tier_for_points,
 )
-from ..config import CLAIM_EXPIRY_HOURS
+from ..config import CLAIM_EXPIRY_HOURS, REPORTER_POINTS
 from ..database import get_db
 from ..deps import get_current_user
 from ..gamification import record_activity
@@ -190,6 +190,9 @@ def list_reports(
     release_expired_claims(db)
 
     query = db.query(m.Report)
+    # Finished reports are kept, not dropped. "done" is a filter you choose,
+    # not something the feed decides for you -- people want to see what
+    # their neighbourhood actually got fixed.
     query = query.filter(m.Report.status == status) if status else query.filter(m.Report.status != "done")
 
     nearby = [r for r in query.all() if haversine_km(lat, lng, r.lat, r.lng) <= radius]
@@ -305,9 +308,17 @@ def complete_report(
     if row.proof_photo_url is None:
         raise HTTPException(status_code=409, detail="Waiting on completion proof from the claimant")
 
-    claimant = db.get(m.User, row.claimed_by)
-    if claimant is None:
-        raise HTTPException(status_code=409, detail="The user who claimed this report no longer exists")
+    # Everyone who took a slot gets credited, not only the first. With
+    # multi-slot posts the old behaviour paid one person and silently gave
+    # the rest nothing for the same work.
+    helper_ids = [
+        h.user_id
+        for h in db.query(m.ReportHelper).filter(m.ReportHelper.report_id == row.id)
+    ] or ([row.claimed_by] if row.claimed_by else [])
+    helpers = [u for u in (db.get(m.User, hid) for hid in helper_ids) if u is not None]
+    if not helpers:
+        raise HTTPException(status_code=409, detail="Nobody is recorded as having helped")
+    claimant = helpers[0]
 
     submission_dict = {
         "user_id": claimant.id,
@@ -321,27 +332,37 @@ def complete_report(
     }
     score = score_submission_from_dict(submission_dict)
 
-    db.add(
-        m.Submission(
-            user_id=claimant.id,
-            org_name=submission_dict["org_name"],
-            photo_url=row.proof_photo_url,
-            description=row.proof_description or "",
-            time_spent_minutes=row.proof_time_spent_minutes or 0,
-            lat=row.lat,
-            lng=row.lng,
-            submitted_at=row.proof_submitted_at,
-            points=score["points"],
-            tier_points=score["tier_points"],
-            authenticity_confidence=score["authenticity_confidence"],
-            rationale=score["rationale"],
+    # One scored submission per helper, so the deed shows up on each of
+    # their profiles and feeds, and every one of them moves their companion.
+    for helper in helpers:
+        db.add(
+            m.Submission(
+                user_id=helper.id,
+                org_name=submission_dict["org_name"],
+                photo_url=row.proof_photo_url,
+                description=row.proof_description or "",
+                time_spent_minutes=row.proof_time_spent_minutes or 0,
+                lat=row.lat,
+                lng=row.lng,
+                submitted_at=row.proof_submitted_at,
+                points=score["points"],
+                tier_points=score["tier_points"],
+                authenticity_confidence=score["authenticity_confidence"],
+                rationale=score["rationale"],
+                deed_type="community_cleanup",
+            )
         )
-    )
+        helper.tier_points += score["tier_points"]
+        helper.tier = tier_for_points(helper.tier_points)
+        if score["points"] > 0:
+            record_activity(helper)
 
-    claimant.tier_points += score["tier_points"]
-    claimant.tier = tier_for_points(claimant.tier_points)
+    # The poster did something too -- they spotted it and wrote it up.
+    # A small, fixed amount, well under what the work is worth.
     if score["points"] > 0:
-        record_activity(claimant)
+        user.tier_points += REPORTER_POINTS
+        user.tier = tier_for_points(user.tier_points)
+        record_activity(user)
 
     row.status = "done"
     row.confirmed_at = datetime.now(timezone.utc).isoformat()

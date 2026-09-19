@@ -58,6 +58,11 @@ QUEST_CACHE_GRID = 0.02
 # any point stops the clock -- only untouched claims expire.
 CLAIM_EXPIRY_HOURS = 3
 
+# Awarded to whoever posted a community report, once it is confirmed done.
+# Spotting a problem and writing it up is a contribution; it is just worth
+# less than going out and fixing it.
+REPORTER_POINTS = 5
+
 # --- Presence-verified check-ins ----------------------------------------
 # You must actually be at an organization to start a quest there, and the
 # clock is kept by the server from location heartbeats rather than typed in

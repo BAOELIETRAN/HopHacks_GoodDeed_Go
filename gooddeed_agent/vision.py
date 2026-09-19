@@ -368,3 +368,71 @@ def _clamp01(value: Any) -> float:
         return max(0.0, min(1.0, float(value)))
     except (TypeError, ValueError):
         return 0.0
+
+
+def score_campaign_proof(
+    photo: PhotoInput,
+    platforms: list[str],
+    campaign_title: str,
+    donation_url: str,
+    description: str = "",
+    *,
+    llm: LLMProvider | None = None,
+) -> dict[str, Any]:
+    """Check a screenshot of a social post promoting a campaign.
+
+    Returns ``{verified: bool, confidence: float, rationale: str}``.
+
+    Points here move between two real people, so a rejection has to say
+    why. A failure to run the check is not a rejection -- it returns
+    verified=False with confidence 0.0, which the caller treats as
+    "try again", not "you cheated".
+    """
+    from .campaigns import promo_rubric
+
+    llm = llm or get_llm_provider()
+    from .providers.claude_llm import build_image_block
+
+    try:
+        image_block = build_image_block(photo)
+    except Exception as exc:
+        log.warning("Could not read campaign proof: %s", exc)
+        return {"verified": False, "confidence": 0.0,
+                "rationale": f"We couldn't read that screenshot ({exc})."}
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "shows_platform": {"type": "boolean"},
+            "relates_to_campaign": {"type": "boolean"},
+            "confidence": {"type": "number"},
+            "rationale": {"type": "string"},
+        },
+        "required": ["shows_platform", "relates_to_campaign", "confidence", "rationale"],
+        "additionalProperties": False,
+    }
+
+    try:
+        raw = llm.complete_json(
+            system=promo_rubric(platforms, campaign_title, donation_url),
+            content=[
+                image_block,
+                {"type": "text", "text": f"Poster's note: {description or '(none)'}\n\nAssess this proof."},
+            ],
+            schema=schema,
+            effort="low",  # lenient and fast, by design
+        )
+    except Exception as exc:
+        log.warning("Campaign proof check failed: %s", exc)
+        return {"verified": False, "confidence": 0.0,
+                "rationale": "We couldn't check that right now. Try again shortly."}
+
+    confidence = _clamp01(raw.get("confidence", 0.0))
+    verified = bool(raw.get("shows_platform")) and bool(raw.get("relates_to_campaign")) and confidence >= 0.4
+    return {
+        "verified": verified,
+        "confidence": round(confidence, 2),
+        "rationale": str(raw.get("rationale", "")).strip() or (
+            "Looks good." if verified else "We couldn't confirm that post."
+        ),
+    }

@@ -62,7 +62,9 @@ class UserOut(BaseModel):
     city: Optional[str]
     avatar_url: Optional[str] = None
     tier: str
-    tier_points: int
+    tier_points: int          # the total; the one source of truth
+    available_points: int = 0  # tier_points minus anything held in escrow
+    escrow_points: int = 0
     points_to_next_tier: Optional[int]
     current_streak: int
     longest_streak: int
@@ -280,36 +282,58 @@ class CommentIn(BaseModel):
     text: str = Field(min_length=1, max_length=280)
 
 
-# --- team cause -----------------------------------------------------------
+# --- campaign marketplace -------------------------------------------------
 
-class CauseOut(BaseModel):
-    key: str
+class CampaignCreate(BaseModel):
+    title: str = Field(min_length=3, max_length=200)
+    donation_url: str = Field(min_length=8, max_length=1024)
+    platforms: list[str] = Field(min_length=1, max_length=3)
+    bounty: int = Field(ge=1, le=1000)
+    note: str = Field(default="", max_length=500)
+    expires_in_days: Optional[int] = Field(default=7, ge=1, le=30)
+
+
+class CampaignProofIn(BaseModel):
+    photo_url: str = Field(min_length=8)
+    note: str = Field(default="", max_length=280)
+
+
+class CampaignOut(BaseModel):
+    campaign_id: str
     title: str
-    icon: str
-    blurb: str
-    unit: str
-    unit_plural: str
-    points_per_unit: int
-    source: str
-    selected: bool = False
+    donation_url: str
+    note: str
+    platforms: list[str]
+    bounty: int
+    status: Literal["open", "claimed", "done", "cancelled", "expired"]
+    created_at: str
+    expires_at: Optional[str]
+    # What the link check found, so a poster can see why theirs was refused.
+    link_ok: bool
+    link_org: Optional[str]
+    link_note: Optional[str]
+    # Relationship to the requester. Claimer identity is never broadcast.
+    is_mine: bool
+    claimed_by_me: bool
+    awaiting_review: bool
 
 
-class TeamImpactOut(BaseModel):
-    """What the team's pooled points add up to, in the real world."""
-
-    has_team: bool
-    member_count: int
-    team_points: int
-    your_points: int
-    cause: CauseOut
-    units: int                 # whole units achieved, floored
-    unit_label: str            # e.g. "meals"
-    points_to_next_unit: int
-    causes: list[CauseOut]
+class TransactionOut(BaseModel):
+    id: str
+    kind: Literal["escrow", "payout", "refund"]
+    amount: int
+    campaign_id: Optional[str]
+    direction: Literal["in", "out", "hold"]
+    counterparty: Optional[str]     # display name, or None
+    note: str
+    created_at: str
 
 
-class SetCauseIn(BaseModel):
-    cause_key: str
+class WalletOut(BaseModel):
+    total_points: int
+    available_points: int
+    escrow_points: int
+    transactions: list[TransactionOut]
 
 
 # --- weekly recap ---------------------------------------------------------
@@ -330,7 +354,9 @@ class WeeklyRecapOut(BaseModel):
     best_day: Optional[str]          # ISO date with the most points
     top_deed_type: Optional[str]
     tier: str
-    tier_points: int
+    tier_points: int          # the total; the one source of truth
+    available_points: int = 0  # tier_points minus anything held in escrow
+    escrow_points: int = 0
     points_to_next_tier: Optional[int]
     tier_changed: bool               # crossed a tier during the week
     current_streak: int

@@ -365,7 +365,10 @@ def test_report_full_lifecycle_credits_the_claimant(client: TestClient):
     maya_me = client.get("/auth/me", headers=auth(maya_token)).json()
     lena_me = client.get("/auth/me", headers=auth(lena_token)).json()
     assert maya_me["tier_points"] == confirmed["points_awarded"]
-    assert lena_me["tier_points"] == 0
+    # The poster now earns a small fixed award for spotting and writing up
+    # the problem -- worth much less than doing the work, but not nothing.
+    from backend.config import REPORTER_POINTS
+    assert lena_me["tier_points"] == REPORTER_POINTS
 
 
 def test_complete_requires_proof_first(client: TestClient):

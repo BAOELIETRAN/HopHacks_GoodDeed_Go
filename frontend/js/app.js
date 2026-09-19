@@ -8,6 +8,7 @@ import { renderQuest, renderResult, renderSubmit } from "./screens/submit.js";
 import { renderActive, teardownActive } from "./screens/active.js";
 import { renderToday } from "./screens/today.js";
 import { renderFeed } from "./screens/feed.js";
+import { renderMarket } from "./screens/market.js";
 import { maybeShowRecap } from "./recap.js";
 import { startLiveActivity, stopLiveActivity } from "./live.js";
 import { renderQuests } from "./screens/quests.js";
@@ -26,6 +27,7 @@ defineRoute("submit",      { render: renderSubmit,     auth: true });
 defineRoute("result",      { render: renderResult,     auth: true });
 defineRoute("active",      { render: renderActive,     auth: true });
 defineRoute("feed",        { render: renderFeed,       nav: true,  auth: true });
+defineRoute("market",      { render: renderMarket,     nav: true,  auth: true });
 defineRoute("community",   { render: renderCommunity,  nav: true,  auth: true });
 defineRoute("report",      { render: renderReportForm, auth: true });
 defineRoute("proof",       { render: renderProof,      auth: true });
@@ -37,6 +39,7 @@ const NAV = [
   { route: "map",         icon: "⌖", label: "Map" },
   { route: "feed",        icon: "✷", label: "Activity" },
   { route: "community",   icon: "♥", label: "Community" },
+  { route: "market",      icon: "◈", label: "Boost" },
   { route: "profile",     icon: "●", label: "Profile" },
 ];
 

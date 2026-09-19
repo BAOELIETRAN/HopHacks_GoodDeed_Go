@@ -189,11 +189,10 @@ export const empty = (emoji, title, sub = "") => `
     ${sub ? `<p class="muted" style="margin-top:8px">${esc(sub)}</p>` : ""}
   </div>`;
 
-export const statusbar = () => `
-  <div class="statusbar">
-    <span>9:41</span>
-    <span><span class="dot"></span>100%</span>
-  </div>`;
+/* The mock phone status bar is gone: this is a web app, and drawing a
+   fake 9:41 and battery icon above the browser's own chrome just looked
+   like a rendering error. Kept as a no-op so every screen needn't change. */
+export const statusbar = () => "";
 
 /** Read a File into a data: URL. The backend stores photo_url as a string and
  *  the AI agent accepts data URLs, so the demo needs no file storage. */

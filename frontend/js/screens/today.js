@@ -28,7 +28,6 @@ export async function renderToday(root) {
       </p>
     </div>
     <div class="pad" style="padding-top:0" id="companion-slot"></div>
-    <div class="pad" style="padding-top:0" id="impact-slot"></div>
     <div id="session-slot"></div>
     ${quoteCard()}
     <div class="pad" id="tasks" style="padding-top:0">${spinner()}</div>
@@ -67,66 +66,6 @@ export async function renderToday(root) {
       </div>`;
   };
   paintCompanion();
-
-  // What the points are actually for. Deliberately directly under the
-  // companion: the creature is the game, this is the point of the game.
-  const impactSlot = root.querySelector("#impact-slot");
-  const paintImpact = async () => {
-    if (!impactSlot) return;
-    const d = await api.teamImpact();
-    if (!d) { impactSlot.replaceChildren(); return; }
-
-    impactSlot.innerHTML = `
-      <div class="card impact-card">
-        <div class="eyebrow">${d.has_team ? "Your team is working toward" : "You're working toward"}</div>
-        <div class="impact-headline">
-          <span class="impact-ico">${d.cause.icon}</span>
-          <div>
-            ${d.units > 0
-              ? `<strong>${d.units.toLocaleString()} ${esc(d.unit_label)}</strong>
-                 <em>${esc(d.cause.title)}</em>`
-              : `<strong>${esc(d.cause.title)}</strong>
-                 <em>${esc(d.cause.blurb)}</em>`}
-          </div>
-        </div>
-        <div class="bar" style="margin-top:12px">
-          <i style="width:${Math.round(((d.cause.points_per_unit - d.points_to_next_unit) / d.cause.points_per_unit) * 100)}%"></i>
-        </div>
-        <p class="tiny" style="margin-top:8px">
-          ${d.points_to_next_unit} more ${d.points_to_next_unit === 1 ? "point" : "points"}
-          for ${d.units > 0 ? "the next" : "your first"} ${esc(d.cause.unit)}${
-            d.has_team ? ` · ${d.member_count} on the team` : ""}
-        </p>
-        <p class="impact-source">Estimate · ${esc(d.cause.source)}. Points measure effort, not money.</p>
-        <button class="btn-link" data-change-cause>Change cause</button>
-        <div data-cause-picker hidden></div>
-      </div>`;
-
-    impactSlot.querySelector("[data-change-cause]").onclick = () => {
-      const picker = impactSlot.querySelector("[data-cause-picker]");
-      picker.hidden = !picker.hidden;
-      if (picker.hidden) return;
-      picker.innerHTML = `<div class="cause-grid">${d.causes.map((c) => `
-        <button class="cause-tile ${c.selected ? "selected" : ""}" data-cause="${esc(c.key)}">
-          <span>${c.icon}</span><em>${esc(c.title)}</em>
-        </button>`).join("")}</div>`;
-      picker.querySelectorAll("[data-cause]").forEach((btn) => {
-        btn.onclick = async () => {
-          try {
-            await api.setCause(btn.dataset.cause);
-            paintImpact();
-
-  // If a quest is running, say so here too. Someone who backgrounded the
-  // app and came back to the home screen should not have to remember.
-  activeSessionBanner(root.querySelector("#session-slot"));
-          } catch (err) {
-            toast(err?.message || "Join a team first to pick a cause", true);
-          }
-        };
-      });
-    };
-  };
-  paintImpact();
 
   // If a quest is running, say so here too. Someone who backgrounded the
   // app and came back to the home screen should not have to remember.

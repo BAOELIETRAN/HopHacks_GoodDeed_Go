@@ -8,6 +8,7 @@ from ..agent_client import points_to_next_tier
 from ..database import get_db
 from ..deps import get_current_user
 from ..gamification import compute_badges, current_frame, frames_for
+from ..wallet import available
 from ..config import GOOGLE_CLIENT_ID
 from ..google_auth import GoogleAuthError, is_enabled, verify_credential
 from ..schemas import (
@@ -42,6 +43,8 @@ def _user_out(db: DbSession, user: m.User) -> UserOut:
         avatar_url=user.avatar_url,
         tier=user.tier,
         tier_points=user.tier_points,
+        available_points=available(user),
+        escrow_points=user.escrow_points or 0,
         points_to_next_tier=points_to_next_tier(user.tier_points),
         current_streak=user.current_streak,
         longest_streak=user.longest_streak,
