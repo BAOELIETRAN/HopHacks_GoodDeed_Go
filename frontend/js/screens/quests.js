@@ -10,9 +10,10 @@ let filter = "all";
 export async function renderQuests(root) {
   root.innerHTML = `
     ${statusbar()}
-    <div class="pad" style="padding-bottom:8px">
+    <div class="hero" style="display:block">
+      <div class="eyebrow">Opportunities</div>
       <h2>Quests near you</h2>
-      <p class="muted">Daily drop-ins and monthly commitments.</p>
+      <p class="muted" style="margin-top:4px">Daily drop-ins and monthly commitments.</p>
     </div>
     <div class="pad" style="padding-top:0;padding-bottom:8px">
       <div class="pills" id="filters">
@@ -50,7 +51,7 @@ export async function renderQuests(root) {
 
 function questCard(q) {
   const card = h(`
-    <div class="card" style="cursor:pointer">
+    <div class="card tappable" style="cursor:pointer">
       <div class="row">
         <div class="thumb">${icon(q.category)}</div>
         <div class="grow">
@@ -62,6 +63,7 @@ function questCard(q) {
           </div>
           <h3 class="truncate">${esc(q.org_name)}</h3>
           <p class="tiny truncate">${esc(prettyCategory(q.category))} · ${distanceLabel(q.distance_km)}</p>
+          <p class="tiny truncate" style="opacity:.7">${esc(q.address || "")}</p>
         </div>
         <div style="text-align:right">
           <div style="font-weight:800;color:var(--green-press)">+${q.estimated_points ?? 0}</div>

@@ -3,7 +3,8 @@
 
 import { api, ApiError, getLocation, setSession, state } from "../api.js";
 import {
-  compressImage, distanceLabel, esc, h, icon, prettyCategory, statusbar, toast,
+  compressImage, directionsUrl, distanceLabel, esc, h, icon, prettyCategory,
+  statusbar, toast,
 } from "../ui.js";
 import { go } from "../router.js";
 
@@ -31,12 +32,20 @@ export function renderQuest(root, { quest }) {
         <p class="muted">${esc(quest.org_name)}</p>
       </div>
 
-      <div class="pills">
-        <button disabled>⌖ ${distanceLabel(quest.distance_km)}</button>
-        <button disabled>◷ ${quest.quest_type === "monthly" ? "Monthly quest" : "Daily quest"}</button>
+      <div class="meta-row">
+        <span class="chip chip-quiet">⌖ ${distanceLabel(quest.distance_km)}</span>
+        <span class="chip chip-quiet">◷ ${quest.quest_type === "monthly" ? "Monthly" : "Daily"}</span>
+        <span class="chip chip-quiet">${esc(prettyCategory(quest.category))}</span>
       </div>
 
-      <div class="panel panel-mint">
+      <a class="btn-directions full" data-directions target="_blank" rel="noopener noreferrer">
+        <span style="font-size:16px">🧭</span> Get directions in Google Maps
+      </a>
+
+      <div class="card">
+        <h3>Where to go</h3>
+        <p class="muted" style="margin-top:6px">${esc(quest.address || "Address on file")}</p>
+        <hr class="divider">
         <h3>What you'll do</h3>
         <p class="muted" style="margin-top:6px">
           Head to ${esc(quest.org_name)}, help out, then photograph what you worked on.
@@ -44,12 +53,22 @@ export function renderQuest(root, { quest }) {
         </p>
       </div>
 
-      <div>
-        <h3>Why you can trust this quest</h3>
-        <p class="muted" style="margin-top:8px">
-          ✓ Legitimacy score ${(quest.legitimacy_score ?? 0).toFixed(2)} of 1.00<br>
-          ✓ ${esc(quest.address || "Address on file")}
-        </p>
+      <div class="card">
+        <h3>Why you can trust this</h3>
+        <div style="margin-top:10px">
+          <div class="list-row">
+            <span class="grow muted">Legitimacy score</span>
+            <strong>${(quest.legitimacy_score ?? 0).toFixed(2)} / 1.00</strong>
+          </div>
+          <div class="list-row">
+            <span class="grow muted">Listing</span>
+            <strong>${quest.verified ? "Verified nonprofit" : "Unverified"}</strong>
+          </div>
+          <div class="list-row">
+            <span class="grow muted">Estimated reward</span>
+            <strong>+${pts} pts</strong>
+          </div>
+        </div>
       </div>
 
       <div class="panel panel-blue">
@@ -64,6 +83,7 @@ export function renderQuest(root, { quest }) {
 
   root.querySelector("[data-back]").onclick = () => history.back();
   root.querySelector("[data-start]").onclick = () => go("submit", { quest });
+  root.querySelector("[data-directions]").href = directionsUrl(quest.lat, quest.lng);
 }
 
 /** The submission form itself. */

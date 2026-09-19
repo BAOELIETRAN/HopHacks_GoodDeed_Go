@@ -36,8 +36,10 @@
   --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
   --s5: 20px; --s6: 24px; --s7: 32px; --s8: 40px;
 
-  --shadow:    0 2px 8px rgba(20, 52, 43, .08);
-  --shadow-lg: 0 6px 20px rgba(20, 52, 43, .13);
+  /* Layered, low-opacity shadows read as depth rather than as a grey blur. */
+  --shadow:    0 1px 2px rgba(20, 52, 43, .05), 0 2px 8px rgba(20, 52, 43, .05);
+  --shadow-lg: 0 2px 6px rgba(20, 52, 43, .07), 0 10px 28px rgba(20, 52, 43, .11);
+  --hairline:  rgba(20, 52, 43, .07);
 
   --phone-w: 430px;
   --nav-h: 68px;
@@ -71,9 +73,9 @@ body {
 .pad { padding: var(--s5); }
 
 /* ---------- Typography ---------- */
-h1 { font-size: 34px; line-height: 1.12; font-weight: 800; letter-spacing: -.5px; }
-h2 { font-size: 24px; font-weight: 800; letter-spacing: -.3px; }
-h3 { font-size: 18px; font-weight: 800; }
+h1 { font-size: 32px; line-height: 1.14; font-weight: 800; letter-spacing: -.8px; }
+h2 { font-size: 22px; font-weight: 800; letter-spacing: -.45px; line-height: 1.25; }
+h3 { font-size: 17px; font-weight: 800; letter-spacing: -.2px; line-height: 1.3; }
 .muted     { color: var(--ink-soft); font-size: 15px; line-height: 1.5; }
 .tiny      { font-size: 12px; color: var(--ink-faint); }
 .eyebrow   { font-size: 12px; font-weight: 800; letter-spacing: .10em; text-transform: uppercase; color: var(--green-press); }
@@ -99,23 +101,32 @@ h3 { font-size: 18px; font-weight: 800; }
 /* ---------- Buttons ---------- */
 .btn {
   display: block; width: 100%; border: 0; cursor: pointer;
-  font-family: inherit; font-weight: 800; font-size: 16px; letter-spacing: .04em;
-  padding: 17px var(--s5); border-radius: var(--r-md);
-  text-transform: uppercase; transition: transform .06s, background .15s, opacity .15s;
+  font-family: inherit; font-weight: 800; font-size: 16px; letter-spacing: -.1px;
+  padding: 16px var(--s5); border-radius: var(--r-md);
+  transition: transform .09s ease, background .15s, opacity .15s, box-shadow .15s;
 }
-.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:active:not(:disabled) { transform: scale(.98); }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .btn-primary { background: var(--green); color: #fff; box-shadow: var(--shadow); }
 .btn-primary:hover:not(:disabled) { background: var(--green-press); }
-.btn-ghost   { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
-.btn-dark    { background: var(--green-dark); color: #fff; }
-.btn-sm {
-  width: auto; padding: 9px 20px; font-size: 13px; border-radius: var(--r-pill);
-  text-transform: uppercase;
+.btn-ghost   { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); border: 1px solid var(--hairline); }
+.btn-outline {
+  background: transparent; color: var(--green-press); border: 1.5px solid var(--green);
+  box-shadow: none;
 }
+.btn-outline:active:not(:disabled) { background: var(--mint); }
+.btn-dark    { background: var(--green-dark); color: #fff; }
+.btn-sm { width: auto; padding: 10px 18px; font-size: 14px; border-radius: var(--r-pill); }
+.btn-row { display: flex; gap: 10px; }
+.btn-row > * { flex: 1; }
 
 /* ---------- Cards ---------- */
-.card { background: var(--surface); border-radius: var(--r-lg); padding: var(--s4); box-shadow: var(--shadow); }
+.card {
+  background: var(--surface); border-radius: var(--r-lg); padding: var(--s4);
+  box-shadow: var(--shadow); border: 1px solid var(--hairline);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.card.tappable:active { transform: scale(.985); box-shadow: var(--shadow-lg); }
 .card + .card { margin-top: var(--s3); }
 .panel { border-radius: var(--r-md); padding: var(--s4); }
 .panel-mint { background: var(--mint); }
@@ -299,3 +310,63 @@ textarea { resize: vertical; min-height: 92px; line-height: 1.5; }
 
 .scorelines > div { display: flex; justify-content: space-between; padding: 7px 0; font-weight: 700; }
 .scorelines > div + div { border-top: 1px solid var(--cream-deep); }
+
+
+/* ---------- Structure ---------- */
+.section-title {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin: var(--s6) 0 var(--s3);
+}
+.section-title h3 { letter-spacing: -.2px; }
+.section-title .link { font-size: 13px; font-weight: 800; color: var(--green-press); cursor: pointer; }
+
+.divider { height: 1px; background: var(--hairline); border: 0; margin: var(--s4) 0; }
+
+.meta-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.meta-row .dot-sep { color: var(--ink-faint); font-size: 11px; }
+
+/* A quieter chip for metadata that shouldn't compete with the title. */
+.chip-quiet {
+  background: transparent; border: 1px solid var(--hairline);
+  color: var(--ink-soft); font-weight: 700; font-size: 12px; padding: 5px 11px;
+}
+
+/* Directions button: recognisably a map action. */
+.btn-directions {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--hairline);
+  border-radius: var(--r-pill); padding: 10px 16px; font-weight: 800; font-size: 14px;
+  text-decoration: none; box-shadow: var(--shadow); cursor: pointer; white-space: nowrap;
+}
+.btn-directions:active { transform: scale(.98); }
+.btn-directions.full { display: flex; width: 100%; border-radius: var(--r-md); padding: 15px; }
+
+/* Claim countdown */
+.countdown {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--yellow); color: #7a5b12; border-radius: var(--r-pill);
+  padding: 4px 11px; font-size: 12px; font-weight: 800;
+}
+.countdown.urgent { background: #fbdcd6; color: #9c3a29; }
+
+/* Status pills on report cards */
+.status-pill { font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: var(--r-pill);
+               text-transform: uppercase; letter-spacing: .05em; }
+.status-open    { background: var(--mint); color: var(--green-press); }
+.status-claimed { background: var(--blue); color: #2f6389; }
+.status-done    { background: var(--cream-deep); color: var(--ink-soft); }
+
+/* Hero header used on the map and list screens */
+.hero {
+  padding: var(--s2) var(--s5) var(--s4);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s3);
+}
+.hero h2 { margin-top: 2px; }
+.hero .stats { display: flex; gap: 7px; flex-shrink: 0; }
+
+/* List rows that aren't cards */
+.list-row {
+  display: flex; align-items: center; gap: var(--s3); padding: var(--s3) 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.list-row:last-child { border-bottom: 0; }

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,6 +14,7 @@ from ..agent_client import (
     score_submission_from_dict,
     tier_for_points,
 )
+from ..config import CLAIM_EXPIRY_HOURS
 from ..database import get_db
 from ..deps import get_current_user
 from ..gamification import record_activity
@@ -30,7 +31,20 @@ def _user_name(db: DbSession, user_id: str | None) -> Optional[str]:
     return user.name if user else None
 
 
-def _to_out(db: DbSession, row: m.Report) -> ReportOut:
+def _claim_expires_at(row: m.Report) -> str | None:
+    """When an untouched claim returns to the feed, or None if it won't."""
+    if row.status != "claimed" or row.proof_submitted_at or not row.claimed_at:
+        return None
+    try:
+        claimed = datetime.fromisoformat(row.claimed_at)
+    except (TypeError, ValueError):
+        return None
+    if claimed.tzinfo is None:
+        claimed = claimed.replace(tzinfo=timezone.utc)
+    return (claimed + timedelta(hours=CLAIM_EXPIRY_HOURS)).isoformat()
+
+
+def _to_out(db: DbSession, row: m.Report, viewer: m.User | None = None) -> ReportOut:
     return ReportOut(
         report_id=row.id,
         photo_url=row.photo_url,
@@ -46,11 +60,14 @@ def _to_out(db: DbSession, row: m.Report) -> ReportOut:
         estimated_points=estimate_points(row.category),
         awaiting_confirmation=row.status == "claimed" and row.proof_photo_url is not None,
         points_awarded=row.points_awarded,
+        is_mine=bool(viewer and row.reported_by == viewer.id),
+        claimed_by_me=bool(viewer and row.claimed_by == viewer.id),
+        claim_expires_at=_claim_expires_at(row),
     )
 
 
-def _to_detail(db: DbSession, row: m.Report) -> ReportDetailOut:
-    base = _to_out(db, row)
+def _to_detail(db: DbSession, row: m.Report, viewer: m.User | None = None) -> ReportDetailOut:
+    base = _to_out(db, row, viewer)
     return ReportDetailOut(
         **base.model_dump(),
         claimed_at=row.claimed_at,
@@ -59,6 +76,45 @@ def _to_detail(db: DbSession, row: m.Report) -> ReportDetailOut:
         proof_submitted_at=row.proof_submitted_at,
         confirmed_at=row.confirmed_at,
     )
+
+
+
+def release_expired_claims(db: DbSession) -> int:
+    """Return abandoned claims to the feed.
+
+    Lazy expiry, run on every list: a background scheduler would be a whole
+    extra moving part for a rule this simple, and a claim only matters when
+    somebody is looking at the feed.
+
+    A claim with proof already submitted is never released -- that one is
+    waiting on the original poster, not on the claimant.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=CLAIM_EXPIRY_HOURS)
+    stale = (
+        db.query(m.Report)
+        .filter(
+            m.Report.status == "claimed",
+            m.Report.proof_submitted_at.is_(None),
+            m.Report.claimed_at.isnot(None),
+        )
+        .all()
+    )
+    released = 0
+    for row in stale:
+        try:
+            claimed_at = datetime.fromisoformat(row.claimed_at)
+        except (TypeError, ValueError):
+            continue
+        if claimed_at.tzinfo is None:
+            claimed_at = claimed_at.replace(tzinfo=timezone.utc)
+        if claimed_at < cutoff:
+            row.status = "open"
+            row.claimed_by = None
+            row.claimed_at = None
+            released += 1
+    if released:
+        db.commit()
+    return released
 
 
 @router.post("/reports", response_model=ReportOut, status_code=201)
@@ -99,7 +155,7 @@ def create_report(
     db.add(row)
     db.commit()
     db.refresh(row)
-    return _to_out(db, row)
+    return _to_out(db, row, user)
 
 
 @router.get("/reports", response_model=list[ReportOut])
@@ -111,26 +167,28 @@ def list_reports(
         default=None, description="Omit for the general feed (open + claimed, i.e. not yet done)"
     ),
     db: DbSession = Depends(get_db),
-    _user: m.User = Depends(get_current_user),
+    user: m.User = Depends(get_current_user),
 ) -> list[ReportOut]:
+    release_expired_claims(db)
+
     query = db.query(m.Report)
     query = query.filter(m.Report.status == status) if status else query.filter(m.Report.status != "done")
 
     nearby = [r for r in query.all() if haversine_km(lat, lng, r.lat, r.lng) <= radius]
     nearby.sort(key=lambda r: haversine_km(lat, lng, r.lat, r.lng))
-    return [_to_out(db, r) for r in nearby]
+    return [_to_out(db, r, user) for r in nearby]
 
 
 @router.get("/reports/{report_id}", response_model=ReportDetailOut)
 def get_report(
     report_id: str,
     db: DbSession = Depends(get_db),
-    _user: m.User = Depends(get_current_user),
+    user: m.User = Depends(get_current_user),
 ) -> ReportDetailOut:
     row = db.get(m.Report, report_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Report not found")
-    return _to_detail(db, row)
+    return _to_detail(db, row, user)
 
 
 @router.post("/reports/{report_id}/claim", response_model=ReportOut)
@@ -152,7 +210,7 @@ def claim_report(
     row.claimed_at = datetime.now(timezone.utc).isoformat()
     db.commit()
     db.refresh(row)
-    return _to_out(db, row)
+    return _to_out(db, row, user)
 
 
 @router.post("/reports/{report_id}/proof", response_model=ReportDetailOut)
@@ -180,7 +238,7 @@ def submit_proof(
     row.proof_submitted_at = datetime.now(timezone.utc).isoformat()
     db.commit()
     db.refresh(row)
-    return _to_detail(db, row)
+    return _to_detail(db, row, user)
 
 
 @router.post("/reports/{report_id}/complete", response_model=ReportDetailOut)
@@ -247,4 +305,4 @@ def complete_report(
 
     db.commit()
     db.refresh(row)
-    return _to_detail(db, row)
+    return _to_detail(db, row, user)

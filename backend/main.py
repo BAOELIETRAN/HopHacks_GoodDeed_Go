@@ -43,6 +43,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def no_cache_frontend(request, call_next):
+    """Stop the browser caching frontend assets.
+
+    Without this, an edited .js or .css keeps serving from cache until a hard
+    refresh -- which cost us an hour chasing a map fix that was already
+    deployed. The payload is small and the API responses are dynamic anyway,
+    so there is nothing worth caching here.
+    """
+    response = await call_next(request)
+    path = request.url.path
+    if not path.startswith("/api") and any(
+        path.endswith(ext) for ext in (".js", ".css", ".html", "/")
+    ):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
+
 app.include_router(auth.router)
 app.include_router(quests.router)
 app.include_router(submissions.router)

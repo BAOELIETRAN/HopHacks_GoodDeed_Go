@@ -41,10 +41,10 @@ export async function renderLeaderboard(root) {
     if (!rows.length) {
       board.innerHTML = empty(
         "🏅",
-        scope === "friends" ? "No friends yet" : "Nobody nearby yet",
+        scope === "friends" ? "No friends yet" : "No ranked deeds yet",
         scope === "friends"
           ? "Share an invite code from your profile to start a group."
-          : "Be the first to log a deed in your area.",
+          : `Nobody nearby has logged a verified deed ${period === "daily" ? "today" : "this week"}. Be first.`,
       );
       return;
     }
@@ -68,7 +68,10 @@ export async function renderLeaderboard(root) {
 
 function renderBoard(rows) {
   const [first, second, third] = rows;
-  const podium = rows.length >= 3 ? `
+  // A podium with one real person and two blanks looks broken; only show it
+  // once three people have actually scored.
+  const ranked = rows.filter((r) => r.points > 0);
+  const podium = ranked.length >= 3 ? `
     <div class="podium" style="margin-bottom:16px">
       <div class="slot p2">
         <div class="medal">🥈</div><div class="nm">${esc(second.name)}</div>
@@ -85,7 +88,7 @@ function renderBoard(rows) {
       </div>
     </div>` : "";
 
-  const rest = rows.slice(rows.length >= 3 ? 3 : 0).map((r) => `
+  const rest = rows.slice(ranked.length >= 3 ? 3 : 0).map((r) => `
     <div class="lb-row ${r.is_you ? "you" : ""}">
       <span class="rank">${r.rank}</span>
       <span class="avatar">${esc(initials(r.name))}</span>

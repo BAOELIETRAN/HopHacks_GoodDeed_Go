@@ -52,6 +52,32 @@ export function timeAgo(iso) {
 export const initials = (name) =>
   String(name || "?").split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase();
 
+/** A Google Maps directions link to a coordinate.
+ *
+ *  Uses the universal Maps URL scheme, which hands off to the native Maps
+ *  app on iOS and Android and falls back to the website on desktop.
+ *  Coordinates rather than the org name: a name is a search that can resolve
+ *  to the wrong branch, coordinates always land on the right door.
+ */
+export function directionsUrl(lat, lng, travelmode = "walking") {
+  const params = new URLSearchParams({
+    api: "1",
+    destination: `${lat},${lng}`,
+    travelmode,
+  });
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+/** Countdown text for an expiring claim, e.g. "2h 14m left". */
+export function timeLeft(iso) {
+  if (!iso) return "";
+  const ms = new Date(iso).getTime() - Date.now();
+  if (!isFinite(ms) || ms <= 0) return "expired";
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `${mins}m left`;
+  return `${Math.floor(mins / 60)}h ${mins % 60}m left`;
+}
+
 let toastTimer;
 export function toast(message, isError = false) {
   document.querySelector(".toast")?.remove();

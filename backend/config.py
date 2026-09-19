@@ -46,6 +46,12 @@ QUEST_CACHE_TTL_SECONDS = 5 * 60
 # roughly 1.1km, tight enough that nearby users still share a cache entry.
 QUEST_CACHE_GRID = 0.01
 
+# How long a claim on a community report holds before it is released back
+# to the feed. Someone who claims a need and never follows through would
+# otherwise lock it forever, and nobody else can help. Proof submitted at
+# any point stops the clock -- only untouched claims expire.
+CLAIM_EXPIRY_HOURS = 3
+
 # Radius (km) used for the "nearby" leaderboard scope, since that endpoint
 # takes no lat/lng of its own -- it uses the requester's last known location.
 LEADERBOARD_NEARBY_RADIUS_KM = 15.0

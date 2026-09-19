@@ -25,8 +25,10 @@ export async function renderProfile(root) {
     <div class="appbar"><span></span><h3>Profile</h3><button data-out aria-label="Sign out">⚙</button></div>
     <div class="pad stack">
       <div class="row">
-        <span class="avatar" style="width:58px;height:58px;font-size:19px;background:#c4bdf5">
-          ${esc((user.name || "?").slice(0, 1).toUpperCase())}
+        <span class="avatar" style="width:58px;height:58px;font-size:19px;background:#c4bdf5;overflow:hidden">
+          ${user.avatar_url
+            ? `<img src="${esc(user.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover">`
+            : esc((user.name || "?").slice(0, 1).toUpperCase())}
         </span>
         <div class="grow">
           <h2 style="font-size:22px">${esc(user.name || "You")}</h2>
@@ -55,9 +57,9 @@ export async function renderProfile(root) {
         </div>
       </div>
 
+      <div class="section-title"><h3>Badges</h3></div>
       <div>
-        <h3>Badges</h3>
-        <div class="row" style="gap:10px;margin-top:10px;flex-wrap:wrap">
+        <div class="row" style="gap:10px;flex-wrap:wrap">
           ${ALL_BADGES.map((b) => `
             <div class="card" style="flex:1;min-width:88px;text-align:center;padding:12px 8px;opacity:${earned.has(b.code) ? 1 : .35}">
               <div style="font-size:26px">${b.emoji}</div>

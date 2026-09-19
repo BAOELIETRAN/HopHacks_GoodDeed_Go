@@ -168,6 +168,13 @@ class ReportOut(BaseModel):
     estimated_points: int
     awaiting_confirmation: bool  # claimed + proof submitted, waiting on the poster
     points_awarded: Optional[int]
+    # Who is looking, so the UI can pick the right action without re-deriving
+    # it from ids on every card.
+    is_mine: bool = False          # the requester posted it
+    claimed_by_me: bool = False    # the requester claimed it
+    # When an untouched claim returns to the feed, so the claimant can see a
+    # countdown instead of silently losing it.
+    claim_expires_at: Optional[str] = None
 
 
 class ReportDetailOut(ReportOut):

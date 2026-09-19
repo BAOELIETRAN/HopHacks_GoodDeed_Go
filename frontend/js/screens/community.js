@@ -1,9 +1,10 @@
 /* Community feed: open reports, claim, submit proof, poster confirms done. */
 
-import { api, ApiError, getLocation, state } from "../api.js";
+import { api, ApiError, getLocation } from "../api.js";
 import { DEFAULT_RADIUS_KM } from "../config.js";
 import {
-  compressImage, empty, esc, h, REPORT_ICON, spinner, statusbar, timeAgo, toast,
+  compressImage, directionsUrl, empty, esc, h, REPORT_ICON, spinner, statusbar,
+  timeAgo, timeLeft, toast,
 } from "../ui.js";
 import { go } from "../router.js";
 
@@ -23,6 +24,7 @@ export async function renderCommunity(root) {
       <div class="pills" id="tabs">
         <button data-v="nearby" aria-selected="${tab === "nearby"}">Nearby</button>
         <button data-v="open" aria-selected="${tab === "open"}">Unclaimed</button>
+        <button data-v="mine" aria-selected="${tab === "mine"}">Claimed by you</button>
         <button data-v="done" aria-selected="${tab === "done"}">Completed</button>
       </div>
     </div>
@@ -36,11 +38,20 @@ export async function renderCommunity(root) {
 
   const load = async () => {
     feed.innerHTML = spinner();
-    const status = tab === "nearby" ? null : tab;
-    const rows = await api.reports(loc.lat, loc.lng, DEFAULT_RADIUS_KM, status);
+    // "mine" isn't a server status -- it's a filter over everything I'm
+    // involved in, whether I posted it or claimed it.
+    const status = tab === "nearby" || tab === "mine" ? null : tab;
+    let rows = await api.reports(loc.lat, loc.lng, DEFAULT_RADIUS_KM, status);
+    if (tab === "mine") rows = rows.filter((r) => r.claimed_by_me || r.is_mine);
+
     if (!rows.length) {
-      feed.innerHTML = empty("🌱", "Nothing here right now",
-        tab === "done" ? "Completed needs show up here." : "Be the first to post a need nearby.");
+      const blank = {
+        done: ["✅", "No completed needs yet", "Finished cleanups show up here."],
+        mine: ["🙌", "You haven't claimed anything", "Tap \u201cI'll help\u201d on a need to claim it."],
+        open: ["🌱", "Nothing unclaimed nearby", "Every nearby need already has someone on it."],
+        nearby: ["🌱", "No needs nearby", "Be the first to post one."],
+      }[tab];
+      feed.innerHTML = empty(...blank);
       return;
     }
     feed.replaceChildren(...rows.map((r) => reportCard(r, load)));
@@ -60,40 +71,52 @@ export async function renderCommunity(root) {
 }
 
 function reportCard(r, reload) {
-  const mine = state.user && r.reported_by === state.user.id;
-  const iClaimed = state.user && r.claimed_by === state.user.id;
+  const iClaimed = r.claimed_by_me;
+  const mine = r.is_mine;
 
   let action = "";
-  if (r.status === "open") action = `<button class="btn btn-primary btn-sm" data-act="claim">I'll help</button>`;
+  if (r.status === "open" && !mine) action = `<button class="btn btn-primary btn-sm" data-act="claim">I'll help</button>`;
+  else if (r.status === "open" && mine) action = `<span class="tiny">Waiting for a helper</span>`;
   else if (r.status === "claimed" && iClaimed && !r.awaiting_confirmation)
     action = `<button class="btn btn-primary btn-sm" data-act="proof">Add proof</button>`;
   else if (r.status === "claimed" && mine && r.awaiting_confirmation)
     action = `<button class="btn btn-primary btn-sm" data-act="complete">Confirm &amp; remove</button>`;
-  else if (r.status === "claimed")
-    action = `<button class="btn btn-ghost btn-sm" disabled>Claimed</button>`;
-  else if (r.status === "done")
-    action = `<span class="chip">✓ Done</span>`;
+  else if (r.status === "claimed" && iClaimed && r.awaiting_confirmation)
+    action = `<span class="tiny">Waiting on ${esc(r.reported_by_name)}</span>`;
+  else if (r.status === "claimed") action = `<span class="tiny">Claimed by ${esc(r.claimed_by_name || "someone")}</span>`;
+  else if (r.status === "done") action = `<span class="status-pill status-done">✓ Done</span>`;
+
+  const left = timeLeft(r.claim_expires_at);
+  const urgent = left && !left.includes("h");
 
   const card = h(`
     <div class="card">
-      <div class="row">
+      <div class="row" style="align-items:flex-start">
         <div class="thumb">${r.photo_url
           ? `<img src="${esc(r.photo_url)}" alt="">`
           : REPORT_ICON.other}</div>
         <div class="grow">
-          <h3 style="font-size:16px">${esc(r.description || "Community need")}</h3>
-          <p class="tiny">Posted by ${esc(r.reported_by_name || "a neighbour")} · ${timeAgo(r.created_at)} · +${r.estimated_points ?? 20}</p>
-          ${r.awaiting_confirmation
-            ? `<p class="tiny" style="color:var(--gold);font-weight:800">Awaiting reporter confirmation</p>`
-            : r.claimed_by_name
-              ? `<p class="tiny">Claimed by ${esc(r.claimed_by_name)}</p>` : ""}
+          <div class="meta-row" style="margin-bottom:5px">
+            <span class="status-pill status-${esc(r.status)}">${esc(r.status)}</span>
+            ${iClaimed ? `<span class="status-pill status-claimed">Yours</span>` : ""}
+            ${left ? `<span class="countdown ${urgent ? "urgent" : ""}">⏱ ${esc(left)}</span>` : ""}
+          </div>
+          <h3>${esc(r.description || "Community need")}</h3>
+          <p class="tiny" style="margin-top:3px">
+            ${esc(r.reported_by_name || "A neighbour")} · ${timeAgo(r.created_at)} · +${r.estimated_points ?? 20} pts
+          </p>
         </div>
       </div>
-      <div class="row-between" style="margin-top:12px">
-        <span class="chip" style="font-size:11px">Community reported</span>
+      ${iClaimed && left
+        ? `<p class="tiny" style="margin-top:10px">Add proof before the timer runs out or this returns to the feed.</p>`
+        : ""}
+      <div class="row-between" style="margin-top:12px;gap:10px">
+        <a class="btn-directions" data-directions target="_blank" rel="noopener noreferrer">🧭 Directions</a>
         <span data-slot>${action}</span>
       </div>
     </div>`);
+
+  card.querySelector("[data-directions]").href = directionsUrl(r.lat, r.lng);
 
   const btn = card.querySelector("[data-act]");
   if (btn) {
@@ -102,7 +125,7 @@ function reportCard(r, reload) {
       try {
         if (btn.dataset.act === "claim") {
           await api.claimReport(r.report_id);
-          toast("Claimed — go help out, then add proof");
+          toast("Claimed — it's yours for the next 3 hours");
         } else if (btn.dataset.act === "complete") {
           await api.completeReport(r.report_id);
           toast("Confirmed and removed from the feed");

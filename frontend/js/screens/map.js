@@ -11,16 +11,14 @@ export async function renderMap(root) {
   const user = state.user || {};
   root.innerHTML = `
     ${statusbar()}
-    <div class="pad" style="padding-bottom:12px">
-      <div class="row-between">
-        <div>
-          <div class="eyebrow">Nearby good deeds</div>
-          <h2>Ready${user.name ? ", " + esc(user.name.split(" ")[0]) : ""}?</h2>
-        </div>
-        <div class="row" style="gap:8px">
-          <span class="chip chip-flame">🔥 ${user.current_streak ?? 0}</span>
-          <span class="chip chip-yellow">★ ${user.tier_points ?? 0}</span>
-        </div>
+    <div class="hero">
+      <div>
+        <div class="eyebrow">Nearby good deeds</div>
+        <h2>Ready${user.name ? ", " + esc(user.name.split(" ")[0]) : ""}?</h2>
+      </div>
+      <div class="stats">
+        <span class="chip chip-flame">🔥 ${user.current_streak ?? 0}</span>
+        <span class="chip chip-yellow">★ ${user.tier_points ?? 0}</span>
       </div>
     </div>
     <div id="map"></div>
@@ -96,11 +94,15 @@ function renderHighlight(container, quests) {
   if (!container) return;
   const q = quests[0];
   if (!q) {
-    container.innerHTML = `<p class="muted center">No quests nearby yet.</p>`;
+    container.innerHTML = `
+      <div class="card center">
+        <p class="muted">No quests found nearby.</p>
+        <p class="tiny" style="margin-top:6px">Try again from a different location.</p>
+      </div>`;
     return;
   }
   const card = h(`
-    <div class="card" style="cursor:pointer">
+    <div class="card tappable" style="cursor:pointer">
       <div class="row">
         <div class="thumb">${icon(q.category)}</div>
         <div class="grow">
@@ -108,7 +110,10 @@ function renderHighlight(container, quests) {
           <h3 class="truncate">${esc(q.org_name)}</h3>
           <p class="tiny truncate">${esc(q.address)} · ${distanceLabel(q.distance_km)}</p>
         </div>
-        <div style="font-size:22px;color:var(--ink-faint)">›</div>
+        <div style="text-align:right">
+          <div style="font-weight:800;color:var(--green-press)">+${q.estimated_points ?? 0}</div>
+          <div style="font-size:20px;color:var(--ink-faint);line-height:1">›</div>
+        </div>
       </div>
     </div>`);
   card.onclick = () => go("quest", { quest: q });
