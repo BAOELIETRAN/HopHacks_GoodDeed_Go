@@ -10,14 +10,21 @@ Interactive docs at http://localhost:8000/docs
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .agent_client import agent_health
+from .config import ALLOWED_ORIGINS
 from .database import Base, engine
+from .migrate import ensure_schema, relax_password_columns
 from .routers import auth, friends, leaderboard, quests, reports, submissions
 
 Base.metadata.create_all(bind=engine)
+ensure_schema(engine)
+relax_password_columns(engine)
 
 app = FastAPI(
     title="GoodDeed Go - backend",
@@ -26,9 +33,12 @@ app = FastAPI(
     "Opportunity discovery and scoring are delegated to gooddeed_agent.",
 )
 
+# In production set ALLOWED_ORIGINS to the deployed frontend URL. Left unset
+# (local dev) we allow any origin, which keeps file-served and differently
+# ported frontends working without configuration.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS or ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -41,6 +51,22 @@ app.include_router(friends.router)
 app.include_router(reports.router)
 
 
+# Serve the frontend from the same origin as the API. One deployed service
+# instead of two: no CORS, no API base URL to configure per environment, and
+# a single origin to register with Google OAuth.
+#
+# Mounted last so every API route above takes precedence over the catch-all.
+_FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
+
+
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "agent": agent_health()}
+    return {
+        "status": "ok",
+        "agent": agent_health(),
+        "database": engine.url.drivername,
+    }
+
+
+if _FRONTEND.is_dir():
+    app.mount("/", StaticFiles(directory=_FRONTEND, html=True), name="frontend")

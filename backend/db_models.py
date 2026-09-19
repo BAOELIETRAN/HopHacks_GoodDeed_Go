@@ -32,8 +32,17 @@ class User(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
     name: Mapped[str] = mapped_column(String(120))
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String(255))
-    password_salt: Mapped[str] = mapped_column(String(64))
+    # Nullable: a Google-only account never sets a password. Email/password
+    # signup still requires both -- that is enforced in the auth router.
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    password_salt: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    # Google's stable subject id. Matched on before email, because a person
+    # can change their Google email address but never their sub.
+    google_sub: Mapped[str | None] = mapped_column(
+        String(64), unique=True, index=True, nullable=True
+    )
+    avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     # Profile display fields (Figma profile screen: "@mayadoesgood", "Oakland").

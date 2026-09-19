@@ -88,6 +88,8 @@ const qs = (params) => new URLSearchParams(params).toString();
 
 // --- auth -----------------------------------------------------------------
 export const api = {
+  authConfig: () => request("/auth/config", { auth: false }),
+  google: (credential) => request("/auth/google", { method: "POST", body: { credential }, auth: false }),
   signup: (payload) => request("/auth/signup", { method: "POST", body: payload, auth: false }),
   login: (payload) => request("/auth/login", { method: "POST", body: payload, auth: false }),
   me: () => withFallback(() => request("/auth/me"), mock.MOCK_USER),

@@ -1,12 +1,19 @@
-# GoodDeed Go - AI agent layer
+# GoodDeed Go -- AI agent + backend + deployment
 anthropic>=0.115.0
 requests>=2.31.0
-python-dotenv>=1.0.0   # reads your .env file
+python-dotenv>=1.0.0     # reads your .env file locally
 
-# Backend layer (FastAPI + SQLite) -- also covers the AI agent's optional HTTP wrapper
+# API layer (also serves the frontend as static files)
 fastapi>=0.110.0
-uvicorn>=0.29.0
+uvicorn[standard]>=0.29.0
 sqlalchemy>=2.0.0
+python-multipart>=0.0.9  # multipart upload endpoints
+
+# Postgres (Supabase in production; SQLite is used when DATABASE_URL is unset)
+psycopg[binary]>=3.1.0
+
+# Google Sign-In: verifies the ID token's signature server-side
+google-auth>=2.28.0
 
 # Dev
 pytest>=8.0.0

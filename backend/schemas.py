@@ -28,6 +28,19 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class GoogleAuthRequest(BaseModel):
+    """The ID token the Google Identity Services button hands the frontend."""
+
+    credential: str = Field(min_length=20)
+
+
+class AuthConfigOut(BaseModel):
+    """Lets the frontend show the Google button only when it will work."""
+
+    google_enabled: bool
+    google_client_id: str
+
+
 class BadgeOut(BaseModel):
     code: str
     label: str
@@ -39,6 +52,7 @@ class UserOut(BaseModel):
     email: str
     username: Optional[str]
     city: Optional[str]
+    avatar_url: Optional[str] = None
     tier: str
     tier_points: int
     points_to_next_tier: Optional[int]

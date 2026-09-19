@@ -1,0 +1,41 @@
+# Render blueprint: one web service that serves both the API and the frontend.
+#
+# Deploying two services (API + static site) would mean CORS configuration, a
+# second URL, and two origins to register with Google. FastAPI serves
+# frontend/ as static files instead, so there is one URL for everything.
+#
+# To use: Render dashboard -> New -> Blueprint -> pick this repo.
+# Then set the four secret env vars marked sync:false in the dashboard.
+
+services:
+  - type: web
+    name: gooddeed-go
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    # $PORT is provided by Render; binding 0.0.0.0 is required or the health
+    # check cannot reach the process.
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12"
+
+      # --- secrets: set these in the Render dashboard --------------------
+      # Supabase connection string. Use the **Session pooler** URI (port
+      # 5432 on the pooler host), not the direct one: Render's free tier is
+      # IPv4-only and Supabase's direct host is IPv6-only.
+      - key: DATABASE_URL
+        sync: false
+
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+
+      # Google OAuth client ID (public, not a secret -- but environment
+      # specific, so it is not committed).
+      - key: GOOGLE_CLIENT_ID
+        sync: false

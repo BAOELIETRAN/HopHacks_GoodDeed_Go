@@ -16,7 +16,10 @@ def hash_password(password: str) -> tuple[str, str]:
     return digest.hex(), salt
 
 
-def verify_password(password: str, password_hash: str, salt: str) -> bool:
+def verify_password(password: str, password_hash: str | None, salt: str | None) -> bool:
+    # A Google-only account has no password; nothing can match it.
+    if not password_hash or not salt:
+        return False
     digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), bytes.fromhex(salt), _PBKDF2_ITERATIONS)
     return hmac.compare_digest(digest.hex(), password_hash)
 

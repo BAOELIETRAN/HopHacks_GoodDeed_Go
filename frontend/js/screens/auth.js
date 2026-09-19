@@ -1,8 +1,83 @@
 /* Welcome, sign up and sign in. */
 
 import { api, ApiError, setSession } from "../api.js";
-import { esc, statusbar, toast } from "../ui.js";
+import { esc, h, statusbar, toast } from "../ui.js";
 import { go } from "../router.js";
+
+/* --- Google Sign-In -------------------------------------------------------
+   Uses Google Identity Services: the button hands us a signed ID token which
+   the backend verifies. Only a public client ID is involved, no secret.
+
+   The button renders only when the server reports Google is configured -- a
+   button that cannot work is worse than no button -- and any failure to load
+   leaves email/password sign-in untouched. */
+
+let cachedConfig = null;
+
+async function googleConfig() {
+  if (cachedConfig) return cachedConfig;
+  try {
+    cachedConfig = await api.authConfig();
+  } catch {
+    cachedConfig = { google_enabled: false, google_client_id: "" };
+  }
+  return cachedConfig;
+}
+
+function loadGsi() {
+  if (window.google?.accounts?.id) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const existing = document.getElementById("gsi-script");
+    if (existing) {
+      existing.addEventListener("load", () => resolve(true));
+      existing.addEventListener("error", () => resolve(false));
+      return;
+    }
+    const script = document.createElement("script");
+    script.id = "gsi-script";
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.head.appendChild(script);
+  });
+}
+
+/** Render the Google button into `mount`, if this deployment supports it. */
+async function mountGoogleButton(mount) {
+  if (!mount) return;
+  const config = await googleConfig();
+  if (!config.google_enabled || !config.google_client_id) return;
+  if (!(await loadGsi())) return;
+
+  try {
+    window.google.accounts.id.initialize({
+      client_id: config.google_client_id,
+      callback: async ({ credential }) => {
+        try {
+          const res = await api.google(credential);
+          setSession(res.token, res.user);
+          go("map");
+        } catch (err) {
+          toast(err instanceof ApiError ? err.message : "Google sign-in failed", true);
+        }
+      },
+    });
+    const slot = h(`<div style="display:grid;place-items:center"></div>`);
+    mount.replaceChildren(slot);
+    window.google.accounts.id.renderButton(slot, {
+      theme: "outline", size: "large", shape: "pill",
+      text: "continue_with", width: 300, logo_alignment: "center",
+    });
+    mount.appendChild(h(`<div class="row" style="margin:14px 0 2px">
+        <hr style="flex:1;border:0;border-top:1px solid var(--cream-deep)">
+        <span class="tiny">or</span>
+        <hr style="flex:1;border:0;border-top:1px solid var(--cream-deep)">
+      </div>`));
+  } catch (err) {
+    console.warn("[gdg] Google button failed to render:", err);
+  }
+}
 
 export function renderWelcome(root) {
   root.innerHTML = `
@@ -27,12 +102,14 @@ export function renderWelcome(root) {
               <div class="tiny">${s}</div>
             </div>`).join("")}
       </div>
+      <div id="gbtn"></div>
       <button class="btn btn-primary" data-go="signup">Let's do some good</button>
       <button class="btn btn-ghost" data-go="login">I already have an account</button>
       <p class="tiny center">Location is used only to show nearby opportunities. You're always in control.</p>
     </div>`;
 
   root.querySelectorAll("[data-go]").forEach((b) => (b.onclick = () => go(b.dataset.go)));
+  mountGoogleButton(root.querySelector("#gbtn"));
 }
 
 function authForm(root, { title, fields, submitLabel, call, altLabel, altRoute }) {
@@ -40,6 +117,7 @@ function authForm(root, { title, fields, submitLabel, call, altLabel, altRoute }
     ${statusbar()}
     <div class="appbar"><button data-back>‹</button><h3>${esc(title)}</h3><span></span></div>
     <div class="pad stack">
+      <div id="gbtn"></div>
       ${fields.map((f) => `
         <label class="field">
           <span>${esc(f.label)}</span>
@@ -53,6 +131,7 @@ function authForm(root, { title, fields, submitLabel, call, altLabel, altRoute }
 
   const errEl = root.querySelector("#err");
   const btn = root.querySelector("#go");
+  mountGoogleButton(root.querySelector("#gbtn"));
   root.querySelector("[data-back]").onclick = () => go("welcome");
   root.querySelector("[data-alt]").onclick = () => go(altRoute);
 
