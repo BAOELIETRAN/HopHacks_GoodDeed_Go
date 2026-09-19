@@ -19,6 +19,7 @@ from ..deletions import deduct, purge_submission
 from ..database import get_db
 from ..deps import get_current_user
 from ..gamification import record_activity
+from ..wallet import earn_coins
 from ..geo import haversine_km
 from ..schemas import ReportCreate, ReportDetailOut, ReportOut, ReportProofSubmit
 from ..textclean import public_text
@@ -397,6 +398,7 @@ def complete_report(
         )
         helper.tier_points += helper_tier_points
         helper.tier = tier_for_points(helper.tier_points)
+        earn_coins(db, helper, helper_tier_points, note="Fixed a community report")
         record_activity(helper)
 
     # The poster did something too -- they spotted a real problem and wrote
@@ -428,6 +430,7 @@ def complete_report(
     )
     user.tier_points += REPORTER_POINTS
     user.tier = tier_for_points(user.tier_points)
+    earn_coins(db, user, REPORTER_POINTS, note="Your report was confirmed fixed")
     record_activity(user)
 
     row.status = "done"

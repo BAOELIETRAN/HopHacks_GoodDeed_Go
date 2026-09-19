@@ -131,6 +131,19 @@ export const api = {
     request(`/campaigns/${id}/proof`, { method: "POST", body: { photo_url, note } }),
   cancelCampaign: (id) => request(`/campaigns/${id}/cancel`, { method: "POST" }),
 
+  // --- store ---------------------------------------------------------------
+  // The catalog falls back to an empty shop rather than stub items: a store
+  // that looks stocked but can't sell you anything is worse than a closed one.
+  store: () => withFallback(() => request("/store"), { coins: 0, avatars: [], eggs: [], rarities: [] }),
+  portfolio: () =>
+    withFallback(() => request("/store/portfolio"), {
+      coins: 0, equipped_avatar: null, deeds_done: 0, items: [],
+      animals_collected: 0, animals_total: 0,
+    }),
+  buyItem: (payload) => request("/store/buy", { method: "POST", body: payload }),
+  hatchEgg: (id) => request(`/store/eggs/${id}/hatch`, { method: "POST" }),
+  equipAvatar: (payload) => request("/store/equip", { method: "POST", body: payload }),
+
   // --- friends activity feed ----------------------------------------------
   feed: (since) =>
     withFallback(() => request(since ? `/feed?since=${encodeURIComponent(since)}` : "/feed"), []),

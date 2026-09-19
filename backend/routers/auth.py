@@ -51,6 +51,8 @@ def _user_out(db: DbSession, user: m.User) -> UserOut:
         badges=compute_badges(user, verified_count),
         frames=frames_for(user.tier_points),
         frame=current_frame(user.tier_points)["code"],
+        coins=user.coins or 0,
+        equipped_avatar=user.equipped_avatar,
     )
 
 

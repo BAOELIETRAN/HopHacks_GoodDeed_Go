@@ -11,6 +11,7 @@ import { renderActive, teardownActive } from "./screens/active.js";
 import { renderToday } from "./screens/today.js";
 import { renderFeed } from "./screens/feed.js";
 import { renderMarket } from "./screens/market.js";
+import { renderStore } from "./screens/store.js";
 import { maybeShowRecap } from "./recap.js";
 import { startLiveActivity, stopLiveActivity } from "./live.js";
 import { renderQuests } from "./screens/quests.js";
@@ -30,6 +31,7 @@ defineRoute("result",      { render: renderResult,     auth: true });
 defineRoute("active",      { render: renderActive,     auth: true });
 defineRoute("feed",        { render: renderFeed,       nav: true,  auth: true });
 defineRoute("market",      { render: renderMarket,     nav: true,  auth: true });
+defineRoute("store",       { render: renderStore,      nav: true,  auth: true });
 defineRoute("community",   { render: renderCommunity,  nav: true,  auth: true, wide: true });
 defineRoute("report",      { render: renderReportForm, auth: true });
 defineRoute("proof",       { render: renderProof,      auth: true });
@@ -42,6 +44,7 @@ const NAV = [
   { route: "feed",        icon: "activity",  label: "Activity" },
   { route: "community",   icon: "community", label: "Community" },
   { route: "market",      icon: "boost",     label: "Boost" },
+  { route: "store",       icon: "coins",     label: "Store" },
   { route: "profile",     icon: "profile",   label: "Profile" },
 ];
 

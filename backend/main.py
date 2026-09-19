@@ -22,14 +22,15 @@ from .config import ALLOWED_ORIGINS
 from .database import Base, engine
 import os
 
-from .migrate import ensure_schema, relax_password_columns
+from .migrate import backfill_coins, ensure_schema, relax_password_columns
 from .routers import (
     admin, auth, campaigns, checkins, friends, leaderboard, quests, recap,
-    reports, social, submissions, tasks,
+    reports, social, store, submissions, tasks,
 )
 
 Base.metadata.create_all(bind=engine)
 ensure_schema(engine)
+backfill_coins(engine)
 relax_password_columns(engine)
 
 app = FastAPI(
@@ -75,6 +76,7 @@ app.include_router(tasks.router)
 app.include_router(social.router)
 app.include_router(recap.router)
 app.include_router(campaigns.router)
+app.include_router(store.router)
 app.include_router(submissions.router)
 app.include_router(leaderboard.router)
 app.include_router(friends.router)

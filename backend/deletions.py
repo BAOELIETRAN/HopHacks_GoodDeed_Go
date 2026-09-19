@@ -49,6 +49,19 @@ def deduct(db: DbSession, user: m.User, points: int, what: str) -> None:
     user.tier_points = max(0, remaining)
     user.tier = tier_for_points(user.tier_points)
 
+    # Take the store coins back too, or deleting and re-logging the same
+    # deed would mint coins on every round trip. Clamped at zero rather
+    # than refused: the coins may already be spent on something that has
+    # since hatched, and clawing back a fox nobody can un-see is worse
+    # than letting a balance bottom out.
+    spent_already = max(0, points - (user.coins or 0))
+    user.coins = max(0, (user.coins or 0) - points)
+    if spent_already:
+        log.info(
+            "%s deleted %s worth %d coins but had already spent %d of them",
+            user.id, what, points, spent_already,
+        )
+
 
 def purge_submission(db: DbSession, submission: m.Submission) -> None:
     """Remove a deed and everything hanging off it."""

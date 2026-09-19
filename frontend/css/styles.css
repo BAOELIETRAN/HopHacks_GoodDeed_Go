@@ -866,3 +866,121 @@ select {
 .checklist li .ico { margin-top: 2px; color: var(--brand-ink); }
 .checklist li.no { color: var(--ink-3); }
 .checklist li.no .ico { color: var(--alert); }
+
+/* ---------- Store ----------
+   Same paper-and-ink cards as everywhere else. Rarity is carried by a single
+   hairline edge (--edge, set per card from the server's tint) and a small
+   label -- never by a glow, a gradient or a shimmer, which would turn the one
+   screen that takes something from you into the loudest one in the app.
+
+   The reveal is the exception: one scale-and-settle, and only that. */
+
+#store-body > .section-title:first-child { margin-top: 0; }
+.store-grid {
+  display: grid; gap: var(--s3);
+  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+}
+.store-note { margin: calc(var(--s2) * -1) 0 var(--s3); }
+
+.store-card {
+  padding: var(--s4); display: flex; flex-direction: column; gap: var(--s2);
+  border-top: 3px solid var(--edge, var(--line));
+}
+.store-card h4 { font-size: 15px; font-weight: 600; letter-spacing: -.005em; }
+.store-card .btn { margin-top: auto; }
+.store-card.is-owned { background: var(--brand-tint); }
+
+.store-art {
+  font-size: 40px; line-height: 1; height: 56px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--sunk); border-radius: var(--r-md);
+}
+/* An egg that has met its deeds should catch the eye on a list of ones that
+   haven't -- the only ambient motion in the store, and it stops for anyone
+   who asks it to. */
+.store-art.is-ready { animation: egg-rock 2.4s ease-in-out infinite; }
+@keyframes egg-rock {
+  0%, 82%, 100% { transform: rotate(0); }
+  86% { transform: rotate(-7deg); }
+  92% { transform: rotate(6deg); }
+}
+
+.odds { list-style: none; display: grid; gap: 3px; margin: var(--s1) 0; }
+.odds li { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); }
+.odds b { margin-left: auto; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.rar-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+
+.hatch-need { display: flex; align-items: center; gap: 5px; color: var(--ink-3); }
+.owned-tag {
+  margin-top: auto; display: flex; align-items: center; gap: 5px;
+  font-size: 13px; font-weight: 600; color: var(--brand-ink);
+}
+.rarity-tag {
+  align-self: flex-start; font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .06em;
+  padding: 2px 8px; border-radius: var(--r-pill);
+  color: var(--ink); border: 1px solid var(--edge, var(--line));
+}
+
+/* --- balance header --- */
+.coin-head {
+  padding: var(--s4); display: flex; align-items: center;
+  justify-content: space-between; gap: var(--s4); flex-wrap: wrap;
+}
+.coin-head-main { display: flex; align-items: center; gap: var(--s3); }
+.coin-mark { display: flex; color: var(--brand-ink); }
+.coin-amount {
+  font-family: var(--font-display); font-size: 26px; font-weight: 600;
+  color: var(--ink); font-variant-numeric: tabular-nums;
+}
+.coin-head-collection { min-width: 132px; }
+.coin-collected {
+  font-family: var(--font-display); font-size: 18px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.coin-bar { height: 6px; border-radius: var(--r-pill); background: var(--sunk); overflow: hidden; margin-top: 4px; }
+.coin-bar > span { display: block; height: 100%; background: var(--brand); border-radius: inherit; }
+
+/* --- the reveal --- */
+.reveal-sheet {
+  background: var(--card); border: 1px solid var(--line);
+  border-top: 4px solid var(--edge, var(--brand));
+  border-radius: var(--r-lg); padding: var(--s7) var(--s5) var(--s5);
+  text-align: center; align-items: center; gap: var(--s3);
+}
+.reveal-art {
+  font-size: 68px; line-height: 1;
+  animation: reveal-pop .42s cubic-bezier(.2, 1.3, .4, 1) both;
+}
+@keyframes reveal-pop {
+  from { transform: scale(.4); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+.reveal-sheet .rarity-tag { align-self: center; }
+.reveal-sheet .btn { width: 100%; margin-top: var(--s2); }
+
+/* Seven tabs is a tight fit on a narrow phone; let the labels shrink rather
+   than wrap onto two lines and push the icons out of alignment. */
+@media (max-width: 400px) {
+  .bottom-nav button { font-size: 10px; gap: 2px; }
+  .bottom-nav button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .store-art.is-ready { animation: none; }
+  .reveal-art { animation: none; }
+}
+
+/* Coins on the profile: a row, not a fourth stat, so the three-up strip
+   keeps its rhythm. It is a button because it is also the way into the
+   store from here. */
+.coin-row {
+  display: flex; align-items: center; gap: var(--s3);
+  background: var(--card);
+  padding: var(--s3) var(--s4); width: 100%;
+  font-family: inherit; text-align: left; cursor: pointer;
+  border: 1px solid var(--line); color: var(--ink);
+}
+.coin-row:hover { background: var(--sunk); }
+.coin-row .coin-amount { font-size: 20px; }
+.worn-avatar { font-size: 30px; line-height: 1; }

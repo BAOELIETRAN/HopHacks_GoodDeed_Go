@@ -102,6 +102,11 @@ Interactive docs: **http://localhost:8000/docs**
 | `POST` | `/friends/invite` · `/friends/join` | Team codes |
 | `GET` `POST` | `/reports` | List / create community needs |
 | `POST` | `/reports/{id}/claim` · `/proof` · `/complete` | The claim lifecycle |
+| `GET` | `/store` | Catalog: avatars, eggs, printed drop odds |
+| `GET` | `/store/portfolio` | What this user owns, plus coins and collection count |
+| `POST` | `/store/buy` | `{code}` → spends coins, returns the owned item |
+| `POST` | `/store/eggs/{id}/hatch` | Opens a ready egg; rolls the animal |
+| `POST` | `/store/equip` | Wear an owned avatar (`{code: null}` removes it) |
 
 **Photos are sent as `data:` URLs.** The agent accepts them directly, so the
 build needs no S3 or Supabase Storage. The frontend downscales to 1024px
@@ -109,6 +114,22 @@ first, because raw phone photos are 3–6MB before base64 adds a third.
 
 **Claims expire after 3 hours** if the claimant never submits proof, so an
 abandoned claim can't lock a need forever. Submitting proof stops the clock.
+
+**Coins are a second balance, and that is deliberate.** `tier_points` is the
+lifetime record: the tier ladder, the leaderboard and how far the companion has
+grown all read it. If the store spent it, buying a hat would demote you from
+Gold and shrink your Sprout. So every path that awards `tier_points` credits
+`User.coins` by the same amount (see `wallet.earn_coins`), and only coins are
+ever spent. They start equal and diverge by exactly what someone has bought.
+Deleting a deed takes its coins back too, clamped at zero, so delete-and-relog
+cannot mint them.
+
+**An egg is earned twice.** Coins buy it; deeds hatch it. Each egg records the
+user's deed count at purchase and needs `hatches_after` *more* before it opens,
+so pre-existing deeds never count. The species is rolled at hatch time, never at
+purchase — a stored roll is a roll someone can eventually read. Catalogs and
+odds live in `backend/store.py` as plain data; adding a cosmetic is not a
+migration.
 
 **Confirming a task pays both people.** Each helper earns the AI's score for the
 proof, never less than `COMPLETION_MIN_POINTS` (10); the poster earns

@@ -70,6 +70,16 @@ class User(Base):
     # hold, not a spend, so it never changes anyone's tier by itself.
     escrow_points: Mapped[int] = mapped_column(Integer, default=0)
 
+    # The store's currency. Credited by the same events and the same amounts
+    # as tier_points, then spent down in the store. Kept separate precisely
+    # so spending never rewrites the lifetime record: buying a hat must not
+    # cost you a tier, a leaderboard place, or a companion stage.
+    coins: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Cosmetic avatar the user has equipped, as a store item code. Null means
+    # their photo (or initials) as before -- the store is opt-in.
+    equipped_avatar: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
     # Consecutive-day activity streak (Figma: "13-day streak", "🔥12").
     # Advances at most once per calendar day (UTC), on any verified
     # (points > 0) submission or confirmed report proof.
@@ -342,6 +352,44 @@ class PointsTransaction(Base):
     amount: Mapped[int] = mapped_column(Integer)
     note: Mapped[str] = mapped_column(String(255), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+
+
+class OwnedItem(Base):
+    """One thing a user bought from the store: their portfolio, a row at a time.
+
+    Avatars and eggs share a table because they share a lifecycle (bought,
+    listed, shown off) and differ only in what happens afterwards. ``kind``
+    discriminates; the egg-only columns are nullable and ignored for avatars.
+
+    An egg is not swapped for an animal row when it opens. It stays the same
+    row and flips ``state`` to ``hatched``, which keeps the purchase, the
+    wait and the result on one line of history -- useful when someone asks
+    what a legendary actually cost them.
+    """
+
+    __tablename__ = "owned_items"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(32), ForeignKey("users.id"), index=True)
+
+    kind: Mapped[str] = mapped_column(String(16), index=True)   # avatar | egg
+    code: Mapped[str] = mapped_column(String(32), index=True)   # store catalog code
+    price_paid: Mapped[int] = mapped_column(Integer, default=0)
+    acquired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+
+    # --- eggs only --------------------------------------------------------
+    # incubating | hatched. Avatars are always "owned".
+    state: Mapped[str] = mapped_column(String(16), default="owned")
+    # Deeds the user had at purchase. Progress is (current - this), so the
+    # requirement is always "N more deeds from here" and back-dating is
+    # impossible.
+    deeds_at_purchase: Mapped[int] = mapped_column(Integer, default=0)
+    hatches_after: Mapped[int] = mapped_column(Integer, default=0)
+    # Filled at hatch time, never at purchase -- the roll must not exist
+    # before the user asks for it.
+    hatched_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    rarity: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    hatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Opportunity(Base):

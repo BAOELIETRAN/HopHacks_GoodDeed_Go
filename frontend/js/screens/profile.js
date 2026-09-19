@@ -21,6 +21,16 @@ export async function renderProfile(root) {
   const next = nextStage(points);
   const ring = (user.frames || []).filter((f) => f.unlocked).slice(-1)[0]?.ring || "#b9b09a";
 
+  // The store is optional, and the profile must render with or without it --
+  // an unreachable store costs you the collection line, not the screen.
+  const portfolio = await api.portfolio().catch(() => null);
+  const worn = (portfolio?.items || []).find(
+    (i) => i.kind === "avatar" && i.code === (portfolio?.equipped_avatar ?? user.equipped_avatar),
+  );
+  const collected = portfolio?.animals_total
+    ? `${portfolio.animals_collected}/${portfolio.animals_total} animals`
+    : "";
+
   root.innerHTML = `
     <div class="appbar">
       <span></span><h3>Profile</h3>
@@ -29,9 +39,11 @@ export async function renderProfile(root) {
     <div class="pad stack">
       <div class="row" style="gap:var(--s4)">
         <span class="avatar framed" style="width:64px;height:64px;font-size:24px;--frame-ring:${esc(ring)}">
-          ${user.avatar_url
-            ? `<img src="${esc(user.avatar_url)}" alt="">`
-            : esc((user.name || "?").slice(0, 1).toUpperCase())}
+          ${worn
+            ? `<span class="worn-avatar" title="${esc(worn.label)}">${worn.emoji}</span>`
+            : user.avatar_url
+              ? `<img src="${esc(user.avatar_url)}" alt="">`
+              : esc((user.name || "?").slice(0, 1).toUpperCase())}
         </span>
         <div class="grow">
           <h2 style="font-size:26px">${esc(user.name || "You")}</h2>
@@ -44,6 +56,15 @@ export async function renderProfile(root) {
         <div><strong>${points}</strong><span>points</span></div>
         <div><strong>${esc(user.tier || "Bronze")}</strong><span>tier</span></div>
       </div>
+
+      <button class="card coin-row" data-store>
+        <span class="coin-mark" aria-hidden="true">${ico("coins", { size: 20 })}</span>
+        <span class="grow" style="text-align:left">
+          <strong class="coin-amount">${(user.coins ?? 0).toLocaleString()}</strong>
+          <span class="muted tiny"> coins${collected ? ` · ${collected}` : ""}</span>
+        </span>
+        <span class="tiny" style="font-weight:600">Store ${ico("arrow", { size: 14 })}</span>
+      </button>
 
       <div class="card" id="tier-slot"></div>
 
@@ -194,4 +215,5 @@ export async function renderProfile(root) {
   const signOut = () => { stopLiveActivity(); clearSession(); go("welcome"); };
   root.querySelector("[data-signout]").onclick = signOut;
   root.querySelector("[data-out]").onclick = signOut;
+  root.querySelector("[data-store]").onclick = () => go("store");
 }

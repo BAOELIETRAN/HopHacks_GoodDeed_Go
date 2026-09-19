@@ -24,6 +24,8 @@ _ADDITIVE_COLUMNS: dict[str, dict[str, str]] = {
         "google_sub": "VARCHAR(64)",
         "avatar_url": "VARCHAR(512)",
         "escrow_points": "INTEGER",
+        "coins": "INTEGER",
+        "equipped_avatar": "VARCHAR(32)",
     },
     "reports": {
         "total_slots": "INTEGER",
@@ -61,6 +63,24 @@ def ensure_schema(engine) -> None:
             for name, sql_type in missing.items():
                 log.info("Adding %s.%s", table, name)
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}"))
+
+
+def backfill_coins(engine) -> None:
+    """Give existing accounts the coins they already earned.
+
+    ``ADD COLUMN`` leaves NULL on every existing row, so without this a user
+    with 1,240 lifetime points would open a brand-new store with nothing to
+    spend. Coins and tier points are credited together from here on, and
+    before this migration nobody could have spent any, so the honest opening
+    balance is exactly ``tier_points``.
+
+    Only ever touches NULLs, so it is safe to run on every boot: once a
+    balance exists, real spending owns it.
+    """
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE users SET coins = COALESCE(tier_points, 0) WHERE coins IS NULL")
+        )
 
 
 def relax_password_columns(engine) -> None:

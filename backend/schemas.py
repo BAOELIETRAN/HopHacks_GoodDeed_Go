@@ -73,6 +73,8 @@ class UserOut(BaseModel):
     badges: list[BadgeOut]
     frames: list[FrameOut] = []
     frame: Optional[str] = None
+    coins: int = 0                       # spendable store balance
+    equipped_avatar: Optional[str] = None  # store item code, if any
 
 
 class AuthResponse(BaseModel):
@@ -479,3 +481,65 @@ class ReportProofSubmit(BaseModel):
 class ReportRejected(BaseModel):
     detail: str
     category: str
+
+
+# --- store ----------------------------------------------------------------
+
+class StoreBuy(BaseModel):
+    code: str
+
+
+class EquipIn(BaseModel):
+    # Null un-equips and falls back to the user's photo or initials.
+    code: Optional[str] = None
+
+
+class OwnedItemOut(BaseModel):
+    """One row of the portfolio.
+
+    Loosely typed on purpose: an avatar, an incubating egg and a hatched
+    animal are one list in the UI, and the fields that differ (progress,
+    rarity) are optional rather than split across three response models the
+    screen would have to branch on.
+    """
+
+    id: str
+    kind: str                    # avatar | egg
+    code: str
+    label: str
+    emoji: str
+    tint: str
+    state: str                   # owned | incubating | hatched
+    acquired_at: Optional[str] = None
+    rarity: Optional[str] = None
+    rarity_label: Optional[str] = None
+    from_egg: Optional[str] = None
+    species_code: Optional[str] = None   # the animal, once hatched
+    progress: Optional[int] = None
+    needed: Optional[int] = None
+    ready: Optional[bool] = None
+
+
+class PortfolioOut(BaseModel):
+    coins: int
+    equipped_avatar: Optional[str] = None
+    deeds_done: int
+    items: list[OwnedItemOut]
+    animals_collected: int
+    animals_total: int
+
+
+class StoreCatalogOut(BaseModel):
+    coins: int
+    avatars: list[dict]
+    eggs: list[dict]
+    rarities: list[dict]
+
+
+class HatchOut(BaseModel):
+    """The reveal. ``item`` is the row as it now reads -- a hatched animal."""
+
+    item: OwnedItemOut
+    rarity: str
+    rarity_label: str
+    is_new_species: bool

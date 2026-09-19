@@ -95,3 +95,62 @@ def pay_out(db: DbSession, poster: m.User, claimer: m.User, amount: int,
     _record(db, kind="payout", amount=amount, campaign_id=campaign_id,
             from_user_id=poster.id, to_user_id=claimer.id,
             note=note or "Campaign completed")
+
+
+# --- store coins ----------------------------------------------------------
+#
+# Coins live here beside the point ledger so there is one module that moves
+# balances, but they deliberately do NOT write PointsTransaction rows.
+#
+# That table records points moving *between two people*, which is what makes
+# a campaign bounty auditable. Coins never change hands: they are minted by
+# your own deeds and burned on your own cosmetics. Writing a row per deed
+# would bury the bounty ledger under thousands of self-to-self entries and
+# make `kind` mean two different things.
+#
+# The coin trail is already complete without it. Every credit has a
+# Submission or MicroDeedDone row behind it, and every debit has an
+# OwnedItem row carrying `price_paid` and `acquired_at`.
+
+
+def earn_coins(db: DbSession, user: m.User, amount: int, note: str = "") -> None:
+    """Credit store coins for a deed that also awarded points.
+
+    Called next to every ``tier_points +=`` in the app, with the same amount.
+    Coins are a spendable mirror of the lifetime record, so the two only ever
+    diverge by what someone has actually bought.
+
+    ``note`` is accepted for symmetry with the ledger functions above and for
+    the log line; it is not persisted.
+    """
+    if amount <= 0:
+        return
+    user.coins = (user.coins or 0) + amount
+
+
+def spend_coins(db: DbSession, user: m.User, amount: int, note: str = "") -> None:
+    """Debit coins for a store purchase.
+
+    Deliberately does not touch ``tier_points``: a purchase is not a
+    donation, and the tier ladder is a record of what someone did, not of
+    what they still have. Raises rather than clamping, because a purchase
+    that silently costs less than its price is worse than a refused one.
+    """
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="That item has no price")
+    balance = user.coins or 0
+    if amount > balance:
+        raise HTTPException(
+            status_code=400,
+            detail=f"That costs {amount} coins and you have {balance}. Go do some good.",
+        )
+    user.coins = balance - amount
+    log.info("%s spent %d coins: %s", user.id, amount, note or "store purchase")
+
+
+def refund_coins(db: DbSession, user: m.User, amount: int, note: str = "") -> None:
+    """Return coins for a purchase that could not be completed."""
+    if amount <= 0:
+        return
+    user.coins = (user.coins or 0) + amount
+    log.info("%s refunded %d coins: %s", user.id, amount, note or "purchase refunded")

@@ -16,6 +16,7 @@ from ..database import get_db
 from ..deletions import deduct, purge_submission
 from ..deps import get_current_user
 from ..gamification import record_activity
+from ..wallet import earn_coins
 from ..schemas import DeedTypeOut, SubmissionCreate, SubmissionOut
 from .checkins import consume_for_submission
 
@@ -116,6 +117,8 @@ def create_submission(
 
     user.tier_points += score["tier_points"]
     user.tier = tier_for_points(user.tier_points)
+    # Same amount, spendable, for the store. See wallet.earn_coins.
+    earn_coins(db, user, score["tier_points"], note=f"Verified: {body.org_name[:60]}")
     user.lat = body.lat
     user.lng = body.lng
 

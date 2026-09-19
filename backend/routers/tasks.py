@@ -23,6 +23,7 @@ from ..database import get_db
 from ..deps import get_current_user
 from ..deletions import deduct
 from ..gamification import record_activity
+from ..wallet import earn_coins
 from ..micro_deeds import BY_ID, DAILY_POINT_CAP, deeds_for_day
 from ..schemas import MicroDeedDoneOut, MicroDeedOut, MicroDeedTodayOut, TaskCompleteIn
 
@@ -106,6 +107,7 @@ def complete_task(
     )
     user.tier_points += awarded
     user.tier = tier_for_points(user.tier_points)
+    earn_coins(db, user, awarded, note="Everyday deed")
 
     # Everyday deeds keep a streak alive. Requiring a verified shift every
     # single day to hold a streak would punish people for having a job.
