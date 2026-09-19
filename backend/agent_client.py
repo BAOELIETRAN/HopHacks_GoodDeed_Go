@@ -2,7 +2,7 @@
 
 ``gooddeed_agent`` is a plain importable Python package (see its README) that
 already runs against deterministic mock data with zero API keys and switches
-to live Claude/Places calls the moment ``ANTHROPIC_API_KEY`` /
+to live OpenAI/Places calls the moment ``OPENAI_API_KEY`` /
 ``GOOGLE_MAPS_API_KEY`` are set -- so there is no separate hand-rolled stub
 here. Routers should import from this module, not from ``gooddeed_agent``
 directly, so the seam stays in one place if that ever needs to change (e.g.
@@ -61,5 +61,5 @@ def agent_health() -> dict[str, Any]:
     settings = load_settings()
     return {
         "places_provider": "mock" if settings.use_mock_places else "google",
-        "llm_provider": "mock" if settings.use_mock_llm else "claude",
+        "llm_provider": "mock" if settings.use_mock_llm else "openai",
     }

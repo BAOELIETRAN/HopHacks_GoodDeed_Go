@@ -15,7 +15,7 @@ import pytest
 from gooddeed_agent.config import Settings
 from gooddeed_agent.providers import MockLLMProvider, get_llm_provider
 from gooddeed_agent.providers.base import ProviderError
-from gooddeed_agent.providers.claude_llm import build_image_block
+from gooddeed_agent.providers.images import build_image_block
 from gooddeed_agent.providers.openai_llm import (
     OpenAILLMProvider,
     _is_reasoning_model,
@@ -28,13 +28,10 @@ from conftest import TINY_PNG
 
 def _settings(**overrides) -> Settings:
     base = dict(
-        anthropic_api_key=None,
         openai_api_key="sk-test",
-        llm_provider="openai",
         google_maps_api_key=None,
         model="gpt-5",
         force_mocks=False,
-        enable_refusal_fallback=True,
         request_timeout_s=60.0,
     )
     base.update(overrides)
@@ -252,7 +249,10 @@ def test_real_sdk_serialises_the_request_we_intend():
     """
     import json
 
-    import httpx
+    try:
+        import httpx
+    except ImportError:  # openai >= 3 depends on the httpx2 fork, not httpx
+        import httpx2 as httpx
     from openai import OpenAI
 
     captured: dict = {}

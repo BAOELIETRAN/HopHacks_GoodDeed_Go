@@ -16,7 +16,7 @@ try:
 except ImportError:  # python-dotenv is optional; real env vars still work
     pass
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "gooddeed.db")
+DB_PATH = os.environ.get("GOODDEED_DB_PATH") or os.path.join(os.path.dirname(__file__), "gooddeed.db")
 
 # Database. Set DATABASE_URL (Supabase, or any Postgres) in production;
 # without it we fall back to a local SQLite file so nobody needs a hosted
@@ -62,6 +62,13 @@ CLAIM_EXPIRY_HOURS = 3
 # Spotting a problem and writing it up is a contribution; it is just worth
 # less than going out and fixing it.
 REPORTER_POINTS = 5
+
+# The least a helper earns once the poster confirms the work is done. The AI
+# still scores the proof and can pay more, but a confirmed cleanup is never
+# worth nothing: the poster, a person, has looked at the result and signed off,
+# and "I did the work and got zero" is the outcome that makes people stop
+# helping. Kept small (2x the poster's award) so it is a floor, not a farm.
+COMPLETION_MIN_POINTS = 10
 
 # --- Presence-verified check-ins ----------------------------------------
 # You must actually be at an organization to start a quest there, and the

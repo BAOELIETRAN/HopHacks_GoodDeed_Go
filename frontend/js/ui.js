@@ -1,6 +1,9 @@
 /* Small shared UI helpers. No framework -- these keep the screens declarative
    without pulling in a build step. */
 
+import { hasIcon, ico } from "./icons.js";
+
+export { ico };
 
 export const h = (html) => {
   const t = document.createElement("template");
@@ -17,25 +20,33 @@ export const esc = (value) =>
 export const tierBadge = (tier) =>
   `<span class="tier-badge tier-${esc(tier)}">${esc(tier)}</span>`;
 
-export const CATEGORY_ICON = {
-  food_bank: "🥕", homeless_shelter: "🏠", animal_shelter: "🐾", environmental: "🌿",
-  community_cleanup: "🧹", education: "📚", healthcare: "🩺", senior_care: "🌻",
-  youth_program: "⭐", crisis_support: "💛", veterans: "🎖️", disability_services: "🤝",
-  refugee_services: "🕊️", arts_culture: "🎨", disaster_relief: "🚨",
-  thrift_donation: "👕", religious: "🕊️", community_center: "🏛️", other: "✨",
-};
-export const icon = (category) => CATEGORY_ICON[category] || CATEGORY_ICON.other;
+/** The app's mark: a map pin with a tick in it, on the brand green. Drawn here, not
+ *  an emoji, so it matches the favicon and scales cleanly. */
+export const logoMark = (size = 28) => `
+  <svg width="${size}" height="${size}" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+    <rect width="32" height="32" rx="8" style="fill:var(--brand)"/>
+    <g fill="none" stroke="#fdfbf5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M25 13.5c0 6.2-6.9 12.7-9.2 14.7a1.3 1.3 0 0 1-1.6 0C11.9 26.2 5 19.7 5 13.5a10 10 0 0 1 20 0"/>
+      <path d="m11.5 13.5 3 3 5-5.5"/>
+    </g>
+  </svg>`;
 
-export const DEED_ICON = {
-  volunteer: "🙌", donation_money: "💳", donation_item: "📦", fundraising: "🎽",
-  kindness: "💛", remote: "💻", advocacy: "📣", blood_donation: "🩸",
-};
-export const deedIcon = (key) => DEED_ICON[key] || DEED_ICON.volunteer;
+/* --- Icons ------------------------------------------------------------------
+   The server sends emoji for a few things (a deed type's icon, an everyday deed's
+   icon). Those are ignored: everything is drawn from the one icon family in
+   icons.js, keyed by the server's own stable ids. */
 
-export const REPORT_ICON = {
-  litter: "🗑️", illegal_dumping: "🚮", graffiti: "🎨", broken_infrastructure: "🔧",
-  overgrowth: "🌳", hazard: "⚠️", abandoned_item: "📦", other: "📍",
-};
+/** A quest's category icon. */
+export const icon = (category, opts) => ico(hasIcon(category) ? category : "other", opts);
+
+/** A deed type's icon (volunteer, donation_money, ...). */
+export const deedIcon = (key, opts) => ico(hasIcon(key) ? key : "volunteer", opts);
+
+/** An everyday good deed's icon, by its id. */
+export const microIcon = (id, opts) => ico(hasIcon(id) ? id : "kindness", opts);
+
+/** A community report's category icon. */
+export const reportIcon = (category, opts) => ico(hasIcon(category) ? category : "pin", opts);
 
 export const prettyCategory = (c) =>
   String(c || "other").replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
@@ -98,6 +109,34 @@ export function timeLeft(iso) {
   return `${Math.floor(mins / 60)}h ${mins % 60}m left`;
 }
 
+/* --- The ink stamp -----------------------------------------------------------
+   Marks a verified deed. It sits a little crooked, and each one differently:
+   the tilt is derived from a seed (a report id, a date), so the same item always
+   lands the same way but two items never line up. */
+
+const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+
+/** "19 SEP 2026" -- the date as a rubber stamp would print it. */
+export function stampDate(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  if (!isFinite(d.getTime())) return "";
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+/** A stable tilt in degrees, between 2 and 8 either way, from any string. */
+export function tiltFor(seed = "") {
+  let n = 0;
+  for (const ch of String(seed)) n = (n * 31 + ch.charCodeAt(0)) >>> 0;
+  const magnitude = 2 + (n % 60) / 10;
+  return (n & 64 ? 1 : -1) * magnitude;
+}
+
+/** Stamp markup. `tone` is "ok" (green) or "no" (red); `slam` plays the thump-down once. */
+export function stamp(label, { sub = "", tone = "ok", seed = label, slam = false, small = false } = {}) {
+  const cls = `stamp${tone === "no" ? " stamp-no" : ""}${small ? " stamp-sm" : ""}${slam ? " slam" : ""}`;
+  return `<span class="${cls}" style="--tilt:${tiltFor(seed).toFixed(1)}deg">${esc(label)}${
+    sub ? `<small>${esc(sub)}</small>` : ""}</span>`;
+}
 
 /** A "quest running" bar, shown wherever the user happens to be. */
 export async function activeSessionBanner(mount) {
@@ -173,216 +212,54 @@ export function confirmDelete({ title, body, confirmLabel = "Delete" }) {
       if (e.key === "Escape") { document.removeEventListener("keydown", esc2); done(false); }
     });
     (document.getElementById("app") || document.body).appendChild(sheet);
+    sheet.querySelector("[data-no]").focus();
   });
 }
 
 let toastTimer;
 export function toast(message, isError = false) {
   document.querySelector(".toast")?.remove();
-  const el = h(`<div class="toast${isError ? " error" : ""}">${esc(message)}</div>`);
+  // Errors interrupt a screen reader; everything else waits its turn.
+  const el = h(`<div class="toast${isError ? " error" : ""}" role="${isError ? "alert" : "status"}">${esc(message)}</div>`);
   document.body.appendChild(el);
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.remove(), 3400);
+  toastTimer = setTimeout(() => el.remove(), 3800);
 }
 
-export const spinner = () => `<div class="spinner"></div>`;
+/* --- Loading and empty states ---------------------------------------------------
+   A blank screen or a spinner tells you nothing. A loading state keeps the shape of
+   what is coming, and an empty state says what the place is for and what to do next. */
 
-export const empty = (emoji, title, sub = "") => `
-  <div class="empty">
-    <div class="big">${emoji}</div>
-    <h3>${esc(title)}</h3>
-    ${sub ? `<p class="muted" style="margin-top:8px">${esc(sub)}</p>` : ""}
-  </div>`;
-
-/* The mock phone status bar is gone: this is a web app, and drawing a
-   fake 9:41 and battery icon above the browser's own chrome just looked
-   like a rendering error. Kept as a no-op so every screen needn't change. */
-export const statusbar = () => "";
-
-/** Read a File into a data: URL. The backend stores photo_url as a string and
- *  the AI agent accepts data URLs, so the demo needs no file storage. */
-export function fileToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error("Could not read that image"));
-    reader.readAsDataURL(file);
-  });
-}
-
-/** Wire up a photo dropzone: pick → preview → report problems.
- *
- *  Written once and shared because the same bug appeared in three forms: the
- *  <img> was appended but never rendered, leaving the alt text on screen and
- *  no indication of what went wrong. Almost always an iPhone HEIC the
- *  browser cannot decode.
- *
- *  Guarantees:
- *   - the placeholder is only hidden once the image has actually decoded
- *   - a decode failure restores the placeholder and reports a real reason
- *   - object URLs are revoked when replaced, so picking ten photos doesn't
- *     leak ten blobs
- */
-export function setupPhotoInput({ dropzone, input, guide, onPhoto, onError }) {
-  let objectUrl = null;
-
-  const release = () => {
-    if (objectUrl) {
-      URL.revokeObjectURL(objectUrl);
-      objectUrl = null;
-    }
-  };
-
-  const showPlaceholder = () => {
-    dropzone.querySelector("img")?.remove();
-    if (guide) guide.style.display = "";
-    release();
-  };
-
-  const fail = (message) => {
-    console.warn("[gdg] photo:", message);
-    showPlaceholder();
-    onPhoto?.(null);
-    onError?.(message);
-  };
-
-  /* Two inputs, not one.
-   *
-   * `capture="environment"` is a hint that tells a phone to open the
-   * camera directly; without it the same input opens the photo library.
-   * You cannot have both from one element, and toggling the attribute
-   * after a user gesture is unreliable across browsers -- so there are two
-   * inputs and a small chooser decides which one to click.
-   *
-   * Desktop has no camera capture, so the button is hidden there rather
-   * than opening a file dialog that pretends to be a camera. */
-  const cameraInput = input.cloneNode();
-  cameraInput.id = `${input.id || "photo"}-camera`;
-  cameraInput.setAttribute("capture", "environment");
-  input.removeAttribute("capture");
-  input.parentNode.insertBefore(cameraInput, input);
-
-  const handle = async (file) => {
-    if (!file) return;
-    console.info(
-      "[gdg] photo selected:",
-      file.name, file.type || "(no type)", `${Math.round(file.size / 1024)}KB`,
-    );
-    onError?.(null);
-
-    let dataUrl;
-    try {
-      dataUrl = await compressImage(file);
-    } catch (err) {
-      return fail(err?.message || "Couldn't read that image.");
-    }
-
-    // Preview from an object URL: cheaper than decoding a multi-megabyte
-    // base64 string, and it reveals a format the browser cannot render
-    // before the user waits on an upload that would fail.
-    release();
-    objectUrl = URL.createObjectURL(file);
-
-    const img = new Image();
-    img.alt = "Your photo";
-    const show = (el) => {
-      dropzone.querySelector("img")?.remove();
-      dropzone.appendChild(el);
-      if (guide) guide.style.display = "none";
-      onPhoto?.(dataUrl);
-    };
-    img.onload = () => show(img);
-    img.onerror = () => {
-      // The compressed copy can still be fine when the original is a
-      // format the browser will not preview.
-      const fallback = new Image();
-      fallback.alt = "Your photo";
-      fallback.onload = () => show(fallback);
-      fallback.onerror = () =>
-        fail(
-          "This device saved that photo in a format browsers can't show (usually HEIC). " +
-          "On iPhone: Settings › Camera › Formats › Most Compatible, then retake.",
-        );
-      fallback.src = dataUrl;
-    };
-    img.src = objectUrl;
-  };
-
-  input.onchange = () => handle(input.files?.[0]);
-  cameraInput.onchange = () => handle(cameraInput.files?.[0]);
-
-  // The dropzone is a <label>; without this every tap would also trigger
-  // its bound input and bypass the chooser entirely.
-  dropzone.addEventListener("click", (e) => {
-    if (e.target === cameraInput || e.target === input) return;
-    e.preventDefault();
-    openChooser();
-  });
-
-  function openChooser() {
-    if (!hasCamera()) return input.click();   // desktop: straight to files
-
-    const sheet = h(`
-      <div class="sheet-overlay" role="dialog" aria-modal="true" aria-label="Add a photo">
-        <div class="sheet">
-          <button class="sheet-item" data-cam><span>📷</span> Take photo</button>
-          <button class="sheet-item" data-file><span>🖼️</span> Choose from files</button>
-          <button class="sheet-item cancel" data-cancel>Cancel</button>
+/** Placeholder rows shaped like a card, shown while a list loads. */
+export const skeleton = (count = 3) => `
+  <div class="sk-list" aria-hidden="true">
+    ${Array.from({ length: count }, () => `
+      <div class="sk-card">
+        <div class="sk sk-block"></div>
+        <div class="sk-lines">
+          <div class="sk sk-line w40"></div>
+          <div class="sk sk-line w85"></div>
+          <div class="sk sk-line w60"></div>
         </div>
-      </div>`);
-    const close = () => sheet.remove();
-    sheet.querySelector("[data-cam]").onclick = () => { close(); cameraInput.click(); };
-    sheet.querySelector("[data-file]").onclick = () => { close(); input.click(); };
-    sheet.querySelector("[data-cancel]").onclick = close;
-    sheet.onclick = (e) => { if (e.target === sheet) close(); };
-    document.addEventListener("keydown", function esc(e) {
-      if (e.key === "Escape") { close(); document.removeEventListener("keydown", esc); }
-    });
-    (document.getElementById("app") || document.body).appendChild(sheet);
-  }
+      </div>`).join("")}
+  </div>
+  <span class="sr-only" role="status">Loading</span>`;
 
-  return { reset: showPlaceholder, release, openChooser };
+/** An empty list, with a reason and (usually) a next step.
+ *  `action` is `{ label, onClick }`; returns an element so the handler can be attached. */
+export function emptyState({ icon: name = "inbox", title, body = "", action = null }) {
+  const el = h(`
+    <div class="empty-state">
+      <div class="empty-art">${ico(name, { size: 28 })}</div>
+      <h3>${esc(title)}</h3>
+      ${body ? `<p>${esc(body)}</p>` : ""}
+      ${action ? `<button class="btn btn-ghost" data-empty-action>${esc(action.label)}</button>` : ""}
+    </div>`);
+  if (action) el.querySelector("[data-empty-action]").onclick = action.onClick;
+  return el;
 }
 
-/** Is there a camera worth offering?
- *
- *  Coarse on purpose. enumerateDevices needs permission before it will
- *  name devices, and asking for camera access just to decide whether to
- *  draw a button is worse than occasionally showing it on a laptop that
- *  has a webcam anyway. */
-export function hasCamera() {
-  if (typeof navigator === "undefined") return false;
-  // Touch plus a coarse pointer is the honest signal for "this is a phone
-  // or tablet". The earlier version also tested `"capture" in input`, but
-  // that IDL property is not reflected everywhere the *attribute* works,
-  // so it produced false negatives on devices that do have a camera.
-  const touch = navigator.maxTouchPoints > 0 || "ontouchstart" in globalThis;
-  const coarse =
-    typeof window === "undefined" ||
-    typeof window.matchMedia !== "function" ||
-    window.matchMedia("(pointer: coarse)").matches;
-  return Boolean(touch && coarse);
-}
-
-/** Shrink a photo before upload. Phone cameras produce 3-6MB JPEGs; sending
- *  those as base64 JSON is slow and can exceed request limits. */
-export async function compressImage(file, maxEdge = 1024, quality = 0.82) {
-  const dataUrl = await fileToDataUrl(file);
-  try {
-    const img = await new Promise((resolve, reject) => {
-      const i = new Image();
-      i.onload = () => resolve(i);
-      i.onerror = () => reject(new Error("bad image"));
-      i.src = dataUrl;
-    });
-    const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
-    if (scale === 1 && dataUrl.length < 900_000) return dataUrl;
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(img.width * scale);
-    canvas.height = Math.round(img.height * scale);
-    canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg", quality);
-  } catch {
-    return dataUrl; // HEIC or similar the canvas can't decode -- send as-is
-  }
-}
+/* Photo capture (upload or camera, preview, retake) lives in photo.js so the
+   pure parts can be tested without a DOM. Re-exported so every screen keeps
+   importing from here. */
+export { compressImage, fileToDataUrl, setupPhotoInput } from "./photo.js";

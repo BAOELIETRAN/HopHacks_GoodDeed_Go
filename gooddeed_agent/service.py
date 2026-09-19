@@ -70,7 +70,7 @@ def health() -> dict[str, Any]:
         "status": "ok",
         "model": settings.model,
         "places_provider": "mock" if settings.use_mock_places else "google",
-        "llm_provider": "mock" if settings.use_mock_llm else "claude",
+        "llm_provider": "mock" if settings.use_mock_llm else "openai",
     }
 
 

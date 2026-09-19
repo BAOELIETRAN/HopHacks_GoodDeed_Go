@@ -7,33 +7,31 @@
 
 import { api, ApiError, setSession, state } from "../api.js";
 import {
-  confirmDelete, empty, esc, h, setupPhotoInput, spinner, statusbar, timeAgo, toast,
+  confirmDelete, emptyState, esc, h, ico, setupPhotoInput, skeleton, timeAgo, toast,
 } from "../ui.js";
 
 const PLATFORM_LABEL = { instagram: "Instagram Story", snapchat: "Snapchat", tiktok: "TikTok" };
-const PLATFORM_ICON = { instagram: "📸", snapchat: "👻", tiktok: "🎵" };
 
 let tab = "board";
 
 export async function renderMarket(root) {
   root.innerHTML = `
-    ${statusbar()}
-    <div class="hero" style="display:block">
-      <div class="eyebrow">Boost</div>
-      <h2>Get your cause seen</h2>
-      <p class="muted" style="margin-top:4px">
-        Offer points, and someone will share your fundraiser with their followers.
-      </p>
+    <div class="page-head">
+      <div>
+        <p class="eyebrow">Boost</p>
+        <h2>Get your cause seen</h2>
+        <p class="muted">Offer points, and someone will share your fundraiser with their followers.</p>
+      </div>
     </div>
-    <div class="pad" style="padding-top:0" id="wallet-slot"></div>
-    <div class="pad" style="padding-top:0">
+    <div class="pad" id="wallet-slot"></div>
+    <div class="pad" style="padding-top:0;padding-bottom:var(--s2)">
       <div class="pills" id="market-tabs">
         <button data-v="board" aria-selected="${tab === "board"}">Open bounties</button>
         <button data-v="mine" aria-selected="${tab === "mine"}">Yours</button>
         <button data-v="new" aria-selected="${tab === "new"}">Post one</button>
       </div>
     </div>
-    <div class="pad" id="market-body" style="padding-top:8px">${spinner()}</div>`;
+    <div class="pad" id="market-body" style="padding-top:var(--s3)">${skeleton(3)}</div>`;
 
   const body = root.querySelector("#market-body");
   const walletSlot = root.querySelector("#wallet-slot");
@@ -42,13 +40,13 @@ export async function renderMarket(root) {
     const w = await api.wallet();
     if (!w) return;
     walletSlot.innerHTML = `
-      <div class="card wallet-card">
-        <div class="wallet-row">
-          <div><strong>${w.available_points}</strong><span>available</span></div>
-          <div><strong>${w.escrow_points}</strong><span>held</span></div>
-          <div><strong>${w.total_points}</strong><span>total</span></div>
-        </div>
-        ${w.escrow_points > 0 ? `<p class="tiny" style="margin-top:8px">
+      <div class="stats-strip">
+        <div><strong>${w.available_points}</strong><span>available</span></div>
+        <div><strong>${w.escrow_points}</strong><span>held</span></div>
+        <div><strong>${w.total_points}</strong><span>total</span></div>
+      </div>
+      ${w.escrow_points > 0 || w.transactions.length ? `<div class="card" style="margin-top:var(--s3)">
+        ${w.escrow_points > 0 ? `<p class="tiny" style="margin-bottom:var(--s3)">
           Held points are reserved for your open bounties. They come back if a
           campaign expires or you cancel it.</p>` : ""}
         ${w.transactions.length ? `
@@ -62,22 +60,30 @@ export async function renderMarket(root) {
                   t.direction === "in" ? "+" : t.direction === "out" ? "−" : "•"}${t.amount}</em>
               </div>`).join("")}
           </details>` : ""}
-      </div>`;
+      </div>` : ""}`;
   };
 
+  // Only the newest request may paint: switching tabs while a slower one is still
+  // in flight must not let the old answer overwrite the new screen.
+  let latest = 0;
   const load = async () => {
-    body.innerHTML = spinner();
+    const mine = ++latest;
+    body.innerHTML = skeleton(3);
     if (tab === "new") return renderForm(body, refresh);
 
     const rows = await api.campaigns(tab === "mine");
+    if (mine !== latest) return;
     if (!rows.length) {
-      body.innerHTML = empty(
-        tab === "mine" ? "📭" : "🌱",
-        tab === "mine" ? "Nothing of yours yet" : "No open bounties",
-        tab === "mine"
-          ? "Post one and people can pick it up."
-          : "Check back later, or post your own cause.",
-      );
+      const pickTab = (v) => root.querySelector(`#market-tabs [data-v="${v}"]`).click();
+      body.replaceChildren(emptyState(tab === "mine" ? {
+        icon: "boost", title: "You haven't posted a bounty",
+        body: "Put up some points and someone will share your cause with their followers.",
+        action: { label: "Post a bounty", onClick: () => pickTab("new") },
+      } : {
+        icon: "boost", title: "No open bounties right now",
+        body: "Check back later, or post your own cause.",
+        action: { label: "Post a bounty", onClick: () => pickTab("new") },
+      }));
       return;
     }
     body.replaceChildren(...rows.map((c) => campaignCard(c, refresh)));
@@ -98,7 +104,7 @@ export async function renderMarket(root) {
 }
 
 function campaignCard(c, refresh) {
-  const plats = c.platforms.map((p) => `${PLATFORM_ICON[p] || ""} ${PLATFORM_LABEL[p] || p}`).join(" · ");
+  const plats = c.platforms.map((p) => PLATFORM_LABEL[p] || p).join(" · ");
   const card = h(`
     <div class="card">
       <div class="row-between" style="align-items:flex-start">
@@ -111,11 +117,11 @@ function campaignCard(c, refresh) {
 
       ${c.note ? `<p class="feed-desc">${esc(c.note)}</p>` : ""}
 
-      ${c.link_org ? `<p class="tiny" style="margin-top:8px">✓ ${esc(c.link_org)}</p>` : ""}
+      ${c.link_org ? `<p class="verified" style="margin-top:10px">${ico("check", { size: 14 })} ${esc(c.link_org)}</p>` : ""}
 
-      <div class="row" style="margin-top:12px;gap:8px">
+      <div class="row" style="margin-top:var(--s4);gap:8px">
         <a class="btn-directions grow" href="${esc(c.donation_url)}" target="_blank"
-           rel="noopener noreferrer" style="text-align:center">🔗 See the cause</a>
+           rel="noopener noreferrer">${ico("link", { size: 16 })} See the cause</a>
         <span data-action></span>
       </div>
       <div data-proof></div>
@@ -137,7 +143,7 @@ function campaignCard(c, refresh) {
       if (!yes) return;
       try {
         await api.deleteCampaign(c.campaign_id);
-        toast(held ? `Deleted — ${c.bounty} points returned` : "Deleted");
+        toast(held ? `Deleted. ${c.bounty} points returned.` : "Deleted");
         refresh();
       } catch (err) {
         toast(err instanceof ApiError ? err.message : "Couldn't delete that", true);
@@ -152,14 +158,14 @@ function campaignCard(c, refresh) {
     btn.onclick = () => renderProof(card.querySelector("[data-proof]"), c, refresh);
     slot.replaceChildren(btn);
   } else if (c.status === "done") {
-    slot.innerHTML = `<span class="status-pill status-done">✓ Done</span>`;
+    slot.innerHTML = `<span class="status-pill status-done">${ico("check", { size: 12 })} Done</span>`;
   } else {
     const btn = h(`<button class="btn btn-primary btn-sm">Claim it</button>`);
     btn.onclick = async () => {
       btn.disabled = true;
       try {
         await api.claimCampaign(c.campaign_id);
-        toast("Yours — post it, then add the screenshot");
+        toast("It's yours. Post it, then add the screenshot.");
         refresh();
       } catch (err) {
         toast(err instanceof ApiError ? err.message : "Couldn't claim", true);
@@ -179,8 +185,8 @@ function renderProof(mount, c, refresh) {
     <label class="dropzone" id="cproof-zone">
       <input type="file" accept="image/jpeg,image/png,image/webp" id="cproof">
       <div class="guide" id="cproof-guide">
-        <span class="guide-icon">${PLATFORM_ICON[c.platforms[0]] || "📷"}</span>
-        Tap to add
+        <span class="guide-icon">${ico("camera", { size: 30 })}</span>
+        Add a screenshot
         <span class="guide-hint">Your story or video, showing the link or cause</span>
       </div>
     </label>
@@ -237,7 +243,7 @@ function renderForm(mount, refresh) {
       <label class="field-label">Where should people post it?</label>
       <div class="pills" id="c-plats">
         ${Object.entries(PLATFORM_LABEL).map(([k, v]) =>
-          `<button type="button" data-p="${k}" aria-selected="false">${PLATFORM_ICON[k]} ${v}</button>`).join("")}
+          `<button type="button" data-p="${k}" aria-selected="false">${v}</button>`).join("")}
       </div>
     </div>
     <div class="form-section">
@@ -287,7 +293,7 @@ function renderForm(mount, refresh) {
         title, donation_url: url, platforms: [...picked], bounty,
         note: mount.querySelector("#c-note").value.trim(), expires_in_days: 7,
       });
-      toast("Posted — your points are held until someone completes it");
+      toast("Posted. Your points are held until someone completes it.");
       tab = "mine";
       refresh();
     } catch (err) {

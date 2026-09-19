@@ -1,96 +1,18 @@
-/* Confetti and the tier progress bar.
+/* The check mark and the tier progress bar.
  *
- * Confetti is drawn on a canvas rather than as DOM nodes: 90 elements
- * animating at once thrashes layout, and a canvas is one composited layer.
- * It self-removes when the last piece falls, so nothing is left behind.
- *
- * Skipped entirely under prefers-reduced-motion -- a full-screen particle
- * burst is exactly the kind of thing that setting exists for.
+ * There used to be a confetti burst here. A verified deed is now marked with the
+ * ink stamp (see stamp() in ui.js), which is quieter and says the same thing.
  */
 
-const COLORS = ["#5ccb7d", "#e8bd5c", "#ff9d8c", "#8fd9f0", "#ffe9a8", "#ffffff"];
-
-export function confettiBurst({ count = 90, duration = 2200 } = {}) {
-  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-
-  const canvas = document.createElement("canvas");
-  canvas.className = "confetti-canvas";
-  const host = document.getElementById("app") || document.body;
-  host.appendChild(canvas);
-
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const w = host.clientWidth, hgt = host.clientHeight;
-  canvas.width = w * dpr;
-  canvas.height = hgt * dpr;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    // No 2D context (canvas disabled, memory pressure, a headless runtime).
-    // Confetti is decoration; it must never take the screen down with it.
-    canvas.remove();
-    return;
-  }
-  ctx.scale(dpr, dpr);
-
-  // Two side cannons rather than a top-down drizzle: the arc reads as
-  // celebration, falling flakes read as weather.
-  const pieces = Array.from({ length: count }, (_, i) => {
-    const left = i % 2 === 0;
-    return {
-      x: left ? w * 0.08 : w * 0.92,
-      y: hgt * 0.62,
-      vx: (left ? 1 : -1) * (3 + Math.random() * 6),
-      vy: -(7 + Math.random() * 7),
-      size: 5 + Math.random() * 6,
-      color: COLORS[(Math.random() * COLORS.length) | 0],
-      spin: (Math.random() - 0.5) * 0.4,
-      angle: Math.random() * Math.PI,
-      sway: Math.random() * 0.06,
-    };
-  });
-
-  const start = performance.now();
-  let raf;
-
-  const frame = (now) => {
-    const elapsed = now - start;
-    if (elapsed > duration) {
-      cancelAnimationFrame(raf);
-      canvas.remove();
-      return;
-    }
-    // Fade the last 500ms so pieces don't vanish mid-flight.
-    ctx.clearRect(0, 0, w, hgt);
-    ctx.globalAlpha = Math.max(0, Math.min(1, (duration - elapsed) / 500));
-
-    for (const p of pieces) {
-      p.vy += 0.32;                       // gravity
-      p.vx *= 0.995;                      // drag
-      p.x += p.vx + Math.sin(now * p.sway * 0.01) * 0.6;
-      p.y += p.vy;
-      p.angle += p.spin;
-
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.angle);
-      ctx.fillStyle = p.color;
-      // Rectangles, squashed on one axis, so they read as tumbling paper.
-      ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
-      ctx.restore();
-    }
-    raf = requestAnimationFrame(frame);
-  };
-  raf = requestAnimationFrame(frame);
-}
-
-/** A checkmark that draws itself. Used when confetti would be too much. */
+/** A checkmark that draws itself. A small, quiet confirmation. */
 export function checkBurst(mount) {
   if (!mount) return;
   mount.innerHTML = `
     <svg class="check-burst" viewBox="0 0 100 100" width="96" height="96" aria-hidden="true">
       <circle class="cb-ring" cx="50" cy="50" r="42" fill="none"
-              stroke="var(--green)" stroke-width="5"/>
+              stroke="var(--brand)" stroke-width="5"/>
       <path class="cb-tick" d="M30 52 L44 66 L71 36" fill="none"
-            stroke="var(--green)" stroke-width="7"
+            stroke="var(--brand)" stroke-width="7"
             stroke-linecap="round" stroke-linejoin="round"/>
     </svg>`;
 }
@@ -130,7 +52,7 @@ export function tierBar(tierPoints, { animateFrom = null } = {}) {
   const el = document.createElement("div");
   el.className = "tier-bar";
   el.innerHTML = `
-    <div class="row-between" style="margin-bottom:7px">
+    <div class="row-between" style="margin-bottom:8px">
       <strong style="font-size:13px">${now.current}</strong>
       <span class="tiny">${
         now.next ? `${now.toNext} pts to ${now.next}` : "Top tier"

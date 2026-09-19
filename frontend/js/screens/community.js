@@ -1,10 +1,11 @@
 /* Community feed: open reports, claim, submit proof, poster confirms done. */
 
-import { api, ApiError, getLocation } from "../api.js";
+import { api, ApiError, getLocation, setSession, state } from "../api.js";
 import { radiusKm } from "../config.js";
+import { completionMessage, creditLabel } from "../credit.js";
 import {
-  confirmDelete, directionsUrl, empty, esc, h, REPORT_ICON, setupPhotoInput,
-  spinner, statusbar, timeAgo, timeLeft, toast,
+  confirmDelete, directionsUrl, emptyState, esc, h, ico, reportIcon, setupPhotoInput,
+  skeleton, stamp, timeAgo, timeLeft, toast,
 } from "../ui.js";
 import { go } from "../router.js";
 
@@ -12,15 +13,17 @@ let tab = "nearby";
 
 export async function renderCommunity(root) {
   root.innerHTML = `
-    ${statusbar()}
-    <div class="appbar"><span></span><h3>Community</h3><span></span></div>
-    <div class="pad stack">
-      <div class="panel panel-coral">
-        <h3>Spot a place that needs care?</h3>
-        <p style="font-size:14px;margin-top:6px;opacity:.95">
-          Post a public-space need. Never enter private property or handle hazardous waste.
-        </p>
+    <div class="page-head">
+      <div>
+        <p class="eyebrow">Your neighbourhood</p>
+        <h2>Community</h2>
+        <p class="muted">Jobs your neighbours posted. Pick one up, or post your own.</p>
       </div>
+      <div class="head-actions">
+        <button class="btn btn-primary btn-sm" id="report-btn">${ico("plus", { size: 16 })} Report a need</button>
+      </div>
+    </div>
+    <div class="pad" style="padding-bottom:var(--s2)">
       <div class="pills" id="tabs">
         <button data-v="nearby" aria-selected="${tab === "nearby"}">Nearby</button>
         <button data-v="open" aria-selected="${tab === "open"}">Unclaimed</button>
@@ -28,30 +31,49 @@ export async function renderCommunity(root) {
         <button data-v="done" aria-selected="${tab === "done"}">Completed</button>
       </div>
     </div>
-    <div class="pad" style="padding-top:4px"><div id="feed" class="grid-2">${spinner()}</div></div>
+    <div class="pad" style="padding-top:var(--s3)"><div id="feed" class="grid-2">${skeleton(3)}</div></div>
     <div class="pad" style="padding-top:0">
-      <button class="btn btn-dark" id="report-btn">Report a community need</button>
+      <p class="tiny">Public spaces only. Never enter private property or handle hazardous waste.</p>
     </div>`;
 
   const feed = root.querySelector("#feed");
   const loc = await getLocation();
+  const selectTab = (v) => root.querySelector(`#tabs [data-v="${v}"]`).click();
 
+  let latest = 0; // only the newest request may paint (see market.js)
   const load = async () => {
-    feed.innerHTML = spinner();
+    const mine = ++latest;
+    feed.innerHTML = skeleton(3);
     // "mine" isn't a server status -- it's a filter over everything I'm
     // involved in, whether I posted it or claimed it.
     const status = tab === "nearby" || tab === "mine" ? null : tab;
     let rows = await api.reports(loc.lat, loc.lng, radiusKm(), status);
+    if (mine !== latest) return;
     if (tab === "mine") rows = rows.filter((r) => r.claimed_by_me || r.is_mine);
 
     if (!rows.length) {
       const blank = {
-        done: ["✅", "No completed needs yet", "Finished cleanups show up here."],
-        mine: ["🙌", "You haven't claimed anything", "Tap \u201cI'll help\u201d on a need to claim it."],
-        open: ["🌱", "Nothing unclaimed nearby", "Every nearby need already has someone on it."],
-        nearby: ["🌱", "No needs nearby", "Be the first to post one."],
+        done: {
+          icon: "check-circle", title: "Nothing finished yet",
+          body: "Cleanups appear here once the person who posted them confirms the work.",
+        },
+        mine: {
+          icon: "community", title: "You haven't picked up a job",
+          body: "Tap “I'll help” on any job to claim it. Jobs you post show up here too.",
+          action: { label: "Browse nearby jobs", onClick: () => selectTab("nearby") },
+        },
+        open: {
+          icon: "sprout", title: "Every nearby job has someone on it",
+          body: "Check back later, or report something you've spotted.",
+          action: { label: "Report a need", onClick: () => go("report") },
+        },
+        nearby: {
+          icon: "pin", title: "Nothing reported nearby",
+          body: "Litter, a broken bench, an overgrown path? Be the first to post it.",
+          action: { label: "Report a need", onClick: () => go("report") },
+        },
       }[tab];
-      feed.innerHTML = empty(...blank);
+      feed.replaceChildren(emptyState(blank));
       return;
     }
     feed.replaceChildren(...rows.map((r) => reportCard(r, load)));
@@ -75,13 +97,13 @@ function reportCard(r, reload) {
   const mine = r.is_mine;
 
   let action = "";
-  if (r.status === "done") action = `<span class="status-pill status-done">✓ Done</span>`;
+  if (r.status === "done") action = stamp("Fixed", { seed: r.report_id, small: true });
   else if (mine && r.awaiting_confirmation)
-    action = `<button class="btn btn-primary btn-sm" data-act="complete">Confirm &amp; remove</button>`;
+    action = `<button class="btn btn-primary btn-sm" data-act="complete">Confirm it's done</button>`;
   else if (mine) action = `<span class="tiny">Your post</span>`;
   else if (iClaimed && r.awaiting_confirmation) action = `<span class="tiny">Waiting on the poster</span>`;
   else if (iClaimed) action = `<button class="btn btn-primary btn-sm" data-act="proof">Add proof</button>`;
-  else if (r.is_full) action = `<span class="tiny">Spots full</span>`;
+  else if (r.is_full) action = `<span class="tiny">All spots taken</span>`;
   else action = `<button class="btn btn-primary btn-sm" data-act="claim">I'll help</button>`;
 
   const left = timeLeft(r.claim_expires_at);
@@ -92,38 +114,35 @@ function reportCard(r, reload) {
       <div class="row" style="align-items:flex-start">
         <div class="thumb">${r.photo_url
           ? `<img src="${esc(r.photo_url)}" alt="">`
-          : REPORT_ICON.other}</div>
+          : reportIcon("other", { size: 24 })}</div>
         <div class="grow">
-          <div class="meta-row" style="margin-bottom:5px">
+          <div class="meta-row" style="margin-bottom:6px">
             <span class="status-pill status-${esc(r.status)}">${esc(r.status)}</span>
             ${iClaimed ? `<span class="status-pill status-claimed">You joined</span>` : ""}
             ${(r.total_slots || 1) > 1
               ? `<span class="slot-pill ${r.is_full ? "full" : ""}">
                    ${r.filled_slots}/${r.total_slots} helpers
                  </span>` : ""}
-            ${left ? `<span class="countdown ${urgent ? "urgent" : ""}">⏱ ${esc(left)}</span>` : ""}
+            ${left ? `<span class="countdown ${urgent ? "urgent" : ""}">${ico("clock", { size: 13 })} ${esc(left)}</span>` : ""}
           </div>
           <h3>${esc(r.description || "Community need")}</h3>
-          <p class="tiny" style="margin-top:3px">
+          <p class="tiny" style="margin-top:4px">
             ${esc(r.reported_by_name || "A neighbour")} · ${timeAgo(r.created_at)} · ${
-              // Once it's done, show what was actually awarded. Showing the
-              // estimate on a finished post is how "no points were credited"
-              // looked like a bug when the photo had simply scored low.
-              r.status === "done"
-                ? (r.points_awarded ? `+${r.points_awarded} pts awarded` : "no points awarded")
-                : `+${r.estimated_points ?? 20} pts`
+              // Once it's done, show what was actually paid to whoever is
+              // looking (the helper or the poster), not the pre-job estimate.
+              esc(creditLabel(r))
             }
           </p>
         </div>
       </div>
       ${iClaimed && left
-        ? `<p class="tiny" style="margin-top:10px">Add proof before the timer runs out or this returns to the feed.</p>`
+        ? `<p class="tiny" style="margin-top:12px">Add proof before the timer runs out, or this goes back to the feed.</p>`
         : ""}
       ${r.status === "done" && r.award_rationale
-        ? `<p class="tiny rationale" style="margin-top:8px">${esc(r.award_rationale)}</p>`
+        ? `<p class="tiny rationale" style="margin-top:10px">${esc(r.award_rationale)}</p>`
         : ""}
-      <div class="row-between" style="margin-top:12px;gap:10px">
-        <a class="btn-directions" data-directions target="_blank" rel="noopener noreferrer">🧭 Directions</a>
+      <div class="row-between" style="margin-top:var(--s4);gap:10px">
+        <a class="btn-directions" data-directions target="_blank" rel="noopener noreferrer">${ico("directions", { size: 16 })} Directions</a>
         <span class="row" style="gap:6px">
           ${mine ? `<button class="delete-btn" data-delete>Delete</button>` : ""}
           <span data-slot>${action}</span>
@@ -160,16 +179,19 @@ function reportCard(r, reload) {
       try {
         if (btn.dataset.act === "claim") {
           await api.claimReport(r.report_id);
-          toast("You're in — head over, then add proof");
+          toast("You're in. Head over, then add proof.");
         } else if (btn.dataset.act === "complete") {
-          await api.completeReport(r.report_id);
-          toast("Confirmed and removed from the feed");
+          const done = await api.completeReport(r.report_id);
+          toast(completionMessage(done));
+          // The poster just earned points; refresh the cached profile so the
+          // rest of the app shows them without a reload.
+          api.me().then((me) => { if (me && state.token) setSession(state.token, me); }).catch(() => {});
         } else if (btn.dataset.act === "proof") {
           return go("proof", { report: r });
         }
         reload();
       } catch (err) {
-        toast(err instanceof ApiError ? err.message : "That didn't work — try again", true);
+        toast(err instanceof ApiError ? err.message : "That didn't work. Try again.", true);
         btn.disabled = false;
       }
     };
@@ -180,39 +202,36 @@ function reportCard(r, reload) {
 /** Post a new community need. */
 export function renderReportForm(root) {
   root.innerHTML = `
-    ${statusbar()}
     <div class="appbar">
-      <button data-back aria-label="Back">‹</button><h3>Report a need</h3><span></span>
+      <button data-back aria-label="Back">${ico("back", { size: 22 })}</button><h3>Report a need</h3><span></span>
     </div>
     <div class="pad stack">
-      <div class="panel panel-coral">
-        <p style="font-size:14px;font-weight:700">
-          Public spaces only. Never enter private property or handle hazardous waste.
-        </p>
+      <div class="note note-alert">
+        ${ico("alert", { size: 18 })}
+        <span>Public spaces only. Never enter private property or handle hazardous waste.</span>
       </div>
 
       <div class="card">
-        <strong style="font-size:14px">What counts as a community need</strong>
-        <p class="tiny" style="margin-top:8px;line-height:1.7">
-          ✓ Litter, illegal dumping, an overflowing bin<br>
-          ✓ Graffiti or a damaged bench, sign or fence<br>
-          ✓ Overgrown planting, a blocked path<br>
-          <span style="opacity:.75">
-          ✗ Anything needing emergency services or a professional crew<br>
-          ✗ Favours, requests for help, or anything not in a public space
-          </span>
-        </p>
+        <h3>What counts as a community need</h3>
+        <ul class="checklist" style="margin-top:10px">
+          <li>${ico("check", { size: 16 })}Litter, illegal dumping, an overflowing bin</li>
+          <li>${ico("check", { size: 16 })}Graffiti, or a damaged bench, sign or fence</li>
+          <li>${ico("check", { size: 16 })}Overgrown planting, a blocked path</li>
+          <li class="no">${ico("close", { size: 16 })}Anything that needs emergency services or a professional crew</li>
+          <li class="no">${ico("close", { size: 16 })}Favours, requests for help, or anything not in a public space</li>
+        </ul>
       </div>
 
-      <label class="dropzone" id="dropzone">
-        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment" id="photo">
-        <div class="guide" id="guide">
-          Tap to photograph the problem
-          <span style="display:block;font-weight:600;opacity:.75;margin-top:6px">
-            JPEG or PNG. Show the problem clearly.
-          </span>
-        </div>
-      </label>
+      <div>
+        <label class="dropzone" id="dropzone">
+          <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" id="photo">
+          <div class="guide" id="guide">
+            <span class="guide-icon">${ico("camera", { size: 30 })}</span>
+            Add a photo of the problem
+            <span class="guide-hint">JPEG or PNG. Show the problem clearly.</span>
+          </div>
+        </label>
+      </div>
 
       <div class="form-section">
         <label class="field-label" for="desc">What needs fixing?</label>
@@ -226,13 +245,13 @@ export function renderReportForm(root) {
             `<option value="${n}">${n} ${n === 1 ? "person" : "people"}</option>`).join("")}
         </select>
         <p class="field-hint">
-          The post stops accepting helpers once that many have joined.
+          The post stops taking helpers once that many have joined.
         </p>
       </div>
 
       <p class="err" id="formerr" hidden></p>
       <button class="btn btn-primary" id="send">Post to the feed</button>
-      <p class="tiny center">An AI check filters spam before this appears publicly.</p>
+      <p class="tiny">An AI check filters out spam before your post appears publicly.</p>
     </div>`;
 
   const fileInput = root.querySelector("#photo");
@@ -283,7 +302,7 @@ export function renderReportForm(root) {
     } catch (err) {
       // A rejected report is a normal outcome, not a crash: the triage said
       // no and explained why. Show that reason rather than a status code.
-      const msg = err instanceof ApiError ? err.message : "Couldn't post that — check your connection and try again.";
+      const msg = err instanceof ApiError ? err.message : "Couldn't post that. Check your connection and try again.";
       errEl.textContent = msg;
       errEl.hidden = false;
       errEl.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -298,20 +317,26 @@ export function renderReportForm(root) {
 export function renderProof(root, { report }) {
   if (!report) return go("community");
   root.innerHTML = `
-    ${statusbar()}
     <div class="appbar">
-      <button data-back aria-label="Back">‹</button><h3>Add cleanup proof</h3><span></span>
+      <button data-back aria-label="Back">${ico("back", { size: 22 })}</button><h3>Add cleanup proof</h3><span></span>
     </div>
     <div class="pad stack">
-      <div class="panel panel-mint">
-        <h3 style="font-size:16px">${esc(report.description || "Community need")}</h3>
-        <p class="tiny">Community report${
+      <div class="card">
+        <p class="eyebrow" style="margin-bottom:6px">The job</p>
+        <h3>${esc(report.description || "Community need")}</h3>
+        <p class="tiny" style="margin-top:4px">Community job${
           (report.total_slots || 1) > 1 ? ` · ${report.filled_slots}/${report.total_slots} helpers` : ""}</p>
       </div>
-      <label class="dropzone" id="dropzone">
-        <input type="file" accept="image/*" capture="environment" id="photo">
-        <div class="guide" id="guide">Photograph the finished work</div>
-      </label>
+      <div>
+        <label class="dropzone" id="dropzone">
+          <input type="file" accept="image/*" id="photo">
+          <div class="guide" id="guide">
+            <span class="guide-icon">${ico("camera", { size: 30 })}</span>
+            Add a photo of the finished work
+            <span class="guide-hint">Same spot as the original, if you can.</span>
+          </div>
+        </label>
+      </div>
       <label class="field">
         <span>What did you do?</span>
         <textarea id="desc" placeholder="e.g. Collected 2 bags; glass marked for city pickup."></textarea>
@@ -322,8 +347,8 @@ export function renderProof(root, { report }) {
       </label>
       <p class="err" id="formerr" hidden></p>
       <button class="btn btn-primary" id="send">Submit proof</button>
-      <p class="tiny center">
-        The person who posted it confirms completion before it leaves the feed.
+      <p class="tiny">
+        The person who posted it confirms the work before it leaves the feed.
       </p>
     </div>`;
 
@@ -361,7 +386,7 @@ export function renderProof(root, { report }) {
       await api.submitProof(report.report_id, {
         photo_url: photo, description, time_spent_minutes: minutes,
       });
-      toast("Proof submitted — waiting on the reporter");
+      toast("Proof sent. Now it's up to the poster to confirm.");
       go("community");
     } catch (err) {
       errEl.textContent = err instanceof ApiError ? err.message : "Couldn't submit that";

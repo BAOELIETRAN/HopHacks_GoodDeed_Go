@@ -36,7 +36,7 @@ def main(argv: list[str] | None = None) -> int:
     print("GoodDeed Go agent demo")
     print(f"  model:  {settings.model}")
     print(f"  places: {'MOCK' if settings.use_mock_places else 'Google Places (live)'}")
-    print(f"  llm:    {'MOCK' if settings.use_mock_llm else 'Claude (live)'}")
+    print(f"  llm:    {'MOCK' if settings.use_mock_llm else 'OpenAI (live)'}")
 
     opportunities = find_opportunities(
         args.lat, args.lng, args.radius_km, max_results=5, verify=args.verify

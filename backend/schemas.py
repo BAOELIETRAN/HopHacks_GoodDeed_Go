@@ -10,7 +10,9 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from .textclean import public_text
 
 
 # --- auth --------------------------------------------------------------
@@ -231,6 +233,11 @@ class SubmissionOut(BaseModel):
     verified_presence: bool = False
     deed_type: str = "volunteer"
 
+    @field_validator("rationale")
+    @classmethod
+    def _no_placeholder_text(cls, value: str) -> str:
+        return public_text(value, "Reviewed automatically.") or ""
+
 
 # --- activity feed, reactions, comments -----------------------------------
 
@@ -312,6 +319,11 @@ class CampaignOut(BaseModel):
     link_ok: bool
     link_org: Optional[str]
     link_note: Optional[str]
+
+    @field_validator("link_note")
+    @classmethod
+    def _no_placeholder_text(cls, value: Optional[str]) -> Optional[str]:
+        return public_text(value)
     # Relationship to the requester. Claimer identity is never broadcast.
     is_mine: bool
     claimed_by_me: bool
@@ -422,7 +434,11 @@ class ReportOut(BaseModel):
     claimed_by_name: Optional[str]
     estimated_points: int
     awaiting_confirmation: bool  # claimed + proof submitted, waiting on the poster
+    # What each helper earned on confirmation, and what the poster earned for
+    # reporting it. Both are set the moment the poster confirms, never one
+    # without the other.
     points_awarded: Optional[int]
+    reporter_points_awarded: Optional[int] = None
     award_rationale: Optional[str] = None
     # Who is looking, so the UI can pick the right action without re-deriving
     # it from ids on every card.
@@ -437,6 +453,11 @@ class ReportOut(BaseModel):
     # When an untouched claim returns to the feed, so the claimant can see a
     # countdown instead of silently losing it.
     claim_expires_at: Optional[str] = None
+
+    @field_validator("award_rationale")
+    @classmethod
+    def _no_placeholder_text(cls, value: Optional[str]) -> Optional[str]:
+        return public_text(value)
 
 
 class ReportDetailOut(ReportOut):

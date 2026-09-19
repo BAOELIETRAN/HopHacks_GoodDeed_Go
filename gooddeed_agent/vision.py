@@ -1,6 +1,6 @@
 """Vision-backed grading: submissions and community reports.
 
-Both functions send a photo plus text to Claude and get a constrained JSON
+Both functions send a photo plus text to the model and get a constrained JSON
 verdict back. The model judges *authenticity and effort only* -- whether the
 photo plausibly shows the described deed at the named org. It never estimates
 real-world impact; that is unverifiable from a photo and rewarding guesses at
@@ -133,7 +133,7 @@ def score_submission(
     llm = llm or get_llm_provider()
     spec = get_deed(deed_type)
 
-    from .providers.claude_llm import build_image_block
+    from .providers.images import build_image_block
 
     content: list[dict[str, Any]] = []
     if photo:
@@ -319,7 +319,7 @@ def classify_report(
     """
     llm = llm or get_llm_provider()
 
-    from .providers.claude_llm import build_image_block
+    from .providers.images import build_image_block
 
     try:
         image_block = build_image_block(photo)
@@ -395,7 +395,7 @@ def score_campaign_proof(
     from .campaigns import promo_rubric
 
     llm = llm or get_llm_provider()
-    from .providers.claude_llm import build_image_block
+    from .providers.images import build_image_block
 
     try:
         image_block = build_image_block(photo)

@@ -10,6 +10,7 @@ Interactive docs at http://localhost:8000/docs
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -79,6 +80,17 @@ app.include_router(leaderboard.router)
 app.include_router(friends.router)
 app.include_router(reports.router)
 app.include_router(admin.router)
+
+
+@app.on_event("startup")
+def _warn_if_scoring_is_stubbed() -> None:
+    """Say so loudly. With no OPENAI_API_KEY the app still works, but every
+    photo is "scored" by a stub, and that is easy to miss until users notice."""
+    if agent_health()["llm_provider"] == "mock":
+        logging.getLogger("gooddeed").warning(
+            "AI scoring is running on STUB data (no OPENAI_API_KEY, or GOODDEED_USE_MOCKS is set). "
+            "Points are placeholders."
+        )
 
 
 @app.on_event("startup")

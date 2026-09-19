@@ -8,8 +8,8 @@
 
 import { api, ApiError } from "../api.js";
 import {
-  confirmDelete, deedIcon, empty, esc, h, initials, prettyCategory, spinner,
-  statusbar, tierBadge, timeAgo, toast,
+  confirmDelete, deedIcon, emptyState, esc, h, ico, initials, prettyCategory, skeleton,
+  tierBadge, timeAgo, toast,
 } from "../ui.js";
 import { go } from "../router.js";
 
@@ -17,16 +17,17 @@ const EMOJI = ["👏", "❤️", "🔥", "🙌", "💪"];
 
 export async function renderFeed(root) {
   root.innerHTML = `
-    ${statusbar()}
-    <div class="hero">
+    <div class="page-head">
       <div>
-        <div class="eyebrow">Your people</div>
+        <p class="eyebrow">Your team</p>
         <h2>Activity</h2>
-        <p class="muted" style="margin-top:4px">What your team has been up to.</p>
+        <p class="muted">What the people on your team have been up to.</p>
       </div>
-      <button class="btn btn-ghost btn-sm" id="to-ranks">Ranks</button>
+      <div class="head-actions">
+        <button class="btn btn-ghost btn-sm" id="to-ranks">${ico("trophy", { size: 16 })} Rankings</button>
+      </div>
     </div>
-    <div class="pad" id="feed-list" style="padding-top:0">${spinner()}</div>`;
+    <div class="pad" id="feed-list">${skeleton(3)}</div>`;
 
   root.querySelector("#to-ranks").onclick = () => go("leaderboard");
 
@@ -35,10 +36,12 @@ export async function renderFeed(root) {
   const load = async () => {
     const items = await api.feed();
     if (!items.length) {
-      list.innerHTML = empty(
-        "🌤️", "Nothing here yet",
-        "Log a deed, or share your team code from your profile so friends show up here.",
-      );
+      list.replaceChildren(emptyState({
+        icon: "activity",
+        title: "It's quiet in here",
+        body: "Log a deed, or share your team code so friends show up in this feed.",
+        action: { label: "Get your team code", onClick: () => go("profile") },
+      }));
       return;
     }
     list.replaceChildren(...items.map(feedCard));
@@ -58,15 +61,15 @@ export function feedCard(item) {
           <div class="meta-row">
             <strong style="font-size:14.5px">${esc(item.user_name)}</strong>
             ${tierBadge(item.user_tier)}
-            ${item.verified_presence ? `<span class="verified">✓ verified</span>` : ""}
+            ${item.verified_presence ? `<span class="verified">${ico("check", { size: 14 })} Timed on site</span>` : ""}
           </div>
           <p class="tiny" style="margin-top:2px">
-            ${deedIcon(item.deed_type)} ${esc(prettyCategory(item.deed_type))}
-            ${item.org_name ? "· " + esc(item.org_name) : ""} · ${timeAgo(item.created_at)}
+            ${deedIcon(item.deed_type, { size: 14 })} ${esc(prettyCategory(item.deed_type))}
+            ${item.org_name && !/^community_/.test(item.deed_type) ? "· " + esc(item.org_name) : ""} · ${timeAgo(item.created_at)}
           </p>
         </div>
         <span class="row" style="gap:6px">
-          <span class="chip chip-quiet">+${item.points}</span>
+          <span class="chip chip-yellow">+${item.points} pts</span>
           ${item.is_mine ? `<button class="delete-btn" data-del-deed>Delete</button>` : ""}
         </span>
       </div>
@@ -79,7 +82,7 @@ export function feedCard(item) {
       <div class="feed-comments" data-comments></div>
 
       <form class="comment-form" data-comment-form>
-        <input type="text" placeholder="Say something nice…" maxlength="280" aria-label="Add a comment">
+        <input type="text" placeholder="Say something kind…" maxlength="280" aria-label="Add a comment">
         <button type="submit" class="btn btn-primary btn-sm">Post</button>
       </form>
     </div>`);
@@ -188,7 +191,7 @@ function paintComments(card, item) {
       const row = h(`
         <p class="feed-comment">
           <strong>${esc(c.user_name)}</strong> ${esc(c.text)}
-          ${c.is_mine || item.is_mine ? `<button class="delete-btn" data-del-c>×</button>` : ""}
+          ${c.is_mine || item.is_mine ? `<button class="delete-btn" data-del-c aria-label="Delete comment">${ico("close", { size: 14 })}</button>` : ""}
         </p>`);
       const del = row.querySelector("[data-del-c]");
       if (del) {

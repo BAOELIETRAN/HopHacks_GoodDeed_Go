@@ -12,8 +12,8 @@ let pendingParams = {};
 let current = null;
 let onNavigate = () => {};
 
-export function defineRoute(name, { render, nav = false, auth = false }) {
-  routes.set(name, { render, nav, auth });
+export function defineRoute(name, { render, nav = false, auth = false, wide = false }) {
+  routes.set(name, { render, nav, auth, wide });
 }
 
 export function setNavigateHook(fn) { onNavigate = fn; }
@@ -51,7 +51,7 @@ async function dispatchTo(name, route) {
   current = name;
 
   const root = document.getElementById("screen");
-  root.className = "screen" + (route.nav ? "" : " no-nav");
+  root.className = "screen" + (route.nav ? "" : " no-nav") + (route.wide ? " wide" : "");
   root.scrollTop = 0;
   root.innerHTML = "";
 
@@ -66,9 +66,17 @@ async function dispatchTo(name, route) {
       return;
     }
     console.error("[gdg] screen failed:", err);
-    root.innerHTML = `<div class="empty"><div class="big">😵</div>
-      <h3>Something broke on this screen</h3>
-      <p class="muted" style="margin-top:8px">${String(err.message || err)}</p></div>`;
+    const detail = String(err.message || err).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+    root.innerHTML = `
+      <div class="pad">
+        <div class="empty-state">
+          <h3>This screen didn't load</h3>
+          <p>Something went wrong on our side. Your points and deeds are safe. Try again in a moment.</p>
+          <button class="btn btn-ghost" data-retry>Try again</button>
+          <details class="tiny" style="margin-top:var(--s3)"><summary>Details</summary>${detail}</details>
+        </div>
+      </div>`;
+    root.querySelector("[data-retry]").onclick = () => dispatch();
   }
   onNavigate(name, route);
 }
