@@ -1046,12 +1046,6 @@ select option { background: #0f3b32; color: #fff; }
 }
 .quote-card cite span { font-weight: 600; opacity: .8; }
 
-.radius-picker {
-  display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap;
-  margin-bottom: var(--s3);
-}
-.radius-picker .pills button { padding: 7px 13px; font-size: 13px; }
-
 .hero { padding: var(--s2) var(--s5) var(--s4); display: flex; align-items: flex-start;
         justify-content: space-between; gap: var(--s3); }
 .hero h2 { margin-top: 2px; }

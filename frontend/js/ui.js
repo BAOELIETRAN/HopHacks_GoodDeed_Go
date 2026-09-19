@@ -1,7 +1,6 @@
 /* Small shared UI helpers. No framework -- these keep the screens declarative
    without pulling in a build step. */
 
-import { getRadiusMiles, RADIUS_CHOICES_MI, setRadiusMiles } from "./config.js";
 
 export const h = (html) => {
   const t = document.createElement("template");
@@ -99,30 +98,6 @@ export function timeLeft(iso) {
   return `${Math.floor(mins / 60)}h ${mins % 60}m left`;
 }
 
-/** Radius picker. Returns an element; calls onChange(miles) on selection. */
-export function radiusPicker(onChange) {
-  const el = h(`
-    <div class="radius-picker">
-      <span class="tiny" style="font-weight:800">Search within</span>
-      <div class="pills" id="radius-pills"></div>
-    </div>`);
-  const pills = el.querySelector("#radius-pills");
-
-  const paint = () => {
-    const current = getRadiusMiles();
-    pills.replaceChildren(...RADIUS_CHOICES_MI.map((mi) => {
-      const b = h(`<button aria-selected="${mi === current}">${mi} mi</button>`);
-      b.onclick = () => {
-        setRadiusMiles(mi);
-        paint();
-        onChange?.(mi);
-      };
-      return b;
-    }));
-  };
-  paint();
-  return el;
-}
 
 /** A "quest running" bar, shown wherever the user happens to be. */
 export async function activeSessionBanner(mount) {

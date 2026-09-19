@@ -39,3 +39,36 @@ services:
       # specific, so it is not committed).
       - key: GOOGLE_CLIENT_ID
         sync: false
+
+      # Shared secret the cron job below presents to
+      # POST /admin/refresh-opportunities. Leave it unset and that endpoint
+      # returns 404 rather than standing open.
+      - key: REFRESH_TOKEN
+        generateValue: true
+
+  # Refreshes the cached opportunity areas at 08:00 UTC daily, so the first
+  # person to open the map each morning gets warm results instead of paying
+  # for a Google fan-out. The web service also arms an in-process timer, but
+  # free-tier services sleep when idle, so this is the one that reliably
+  # fires.
+  - type: cron
+    name: gooddeed-daily-refresh
+    runtime: python
+    plan: starter          # cron jobs are not available on the free plan
+    region: oregon
+    schedule: "0 8 * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: >-
+      curl -fsS -X POST "https://$APP_HOST/admin/refresh-opportunities"
+      -H "X-Refresh-Token: $REFRESH_TOKEN"
+    envVars:
+      - key: APP_HOST
+        fromService:
+          type: web
+          name: gooddeed-go
+          property: host
+      - key: REFRESH_TOKEN
+        fromService:
+          type: web
+          name: gooddeed-go
+          envVarKey: REFRESH_TOKEN

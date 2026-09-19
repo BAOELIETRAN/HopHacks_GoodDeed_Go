@@ -28,6 +28,7 @@ _ADDITIVE_COLUMNS: dict[str, dict[str, str]] = {
     "reports": {
         "total_slots": "INTEGER",
         "filled_slots": "INTEGER",
+        "award_rationale": "VARCHAR(600)",
     },
     "opportunities": {
         "website": "VARCHAR(512)",

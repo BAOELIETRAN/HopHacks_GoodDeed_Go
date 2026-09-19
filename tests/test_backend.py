@@ -655,3 +655,332 @@ def test_wallet_split_always_sums_to_the_total(client: TestClient):
 
     w = client.get("/wallet", headers=auth(token)).json()
     assert w["available_points"] + w["escrow_points"] == w["total_points"]
+
+
+def test_completion_credits_poster_and_every_helper_in_the_database(client: TestClient):
+    """The dual-credit guarantee, asserted against the rows themselves.
+
+    A 200 from /complete proves nothing about points -- the endpoint returns
+    200 whether or not the writes landed. So this reads ``User.tier_points``
+    straight out of the database before and after, for the poster and for
+    *both* helpers on a two-slot post.
+    """
+    from backend.config import REPORTER_POINTS
+    from backend import db_models as m
+
+    poster = signup(client, "Pia", "pia_dual@example.com")
+    h1 = signup(client, "Hana", "hana_dual@example.com")
+    h2 = signup(client, "Hugo", "hugo_dual@example.com")
+
+    report = _create_report(client, poster["token"], total_slots=2)
+    rid = report["report_id"]
+    for h in (h1, h2):
+        assert client.post(f"/reports/{rid}/claim", headers=auth(h["token"])).status_code == 200
+    client.post(
+        f"/reports/{rid}/proof",
+        json={
+            "photo_url": "https://example.com/after.jpg",
+            "description": "Cleared the whole verge, three bags out for collection.",
+            "time_spent_minutes": 45,
+        },
+        headers=auth(h1["token"]),
+    )
+
+    def points_in_db():
+        db = next(app.dependency_overrides[get_db]())
+        try:
+            return {
+                u.email: u.tier_points
+                for u in db.query(m.User).filter(
+                    m.User.email.in_(["pia_dual@example.com",
+                                      "hana_dual@example.com",
+                                      "hugo_dual@example.com"])
+                )
+            }
+        finally:
+            db.close()
+
+    before = points_in_db()
+    done = client.post(f"/reports/{rid}/complete", headers=auth(poster["token"])).json()
+    after = points_in_db()
+
+    awarded = done["points_awarded"]
+    assert awarded > 0, "mock provider should score this proof"
+
+    # Every helper who took a slot is paid, not just the first to claim.
+    for email in ("hana_dual@example.com", "hugo_dual@example.com"):
+        gained = after[email] - before[email]
+        assert gained == awarded, f"{email} gained {gained}, expected {awarded}"
+
+    # And the poster is paid in the same transaction.
+    assert after["pia_dual@example.com"] - before["pia_dual@example.com"] == REPORTER_POINTS
+
+
+def test_poster_is_paid_even_when_the_proof_photo_scores_zero(client: TestClient):
+    """The poster's award must not hang on someone else's camera work.
+
+    They spotted a real problem and wrote it up, and that post passed its own
+    check when it was created. A weak after-photo is the helper's score to
+    lose, not the poster's.
+    """
+    import backend.routers.reports as reports_router
+    from backend.config import REPORTER_POINTS
+    from backend import db_models as m
+
+    poster = signup(client, "Pia", "pia_zero@example.com")
+    helper = signup(client, "Hana", "hana_zero@example.com")
+    report = _create_report(client, poster["token"])
+    rid = report["report_id"]
+    client.post(f"/reports/{rid}/claim", headers=auth(helper["token"]))
+    client.post(
+        f"/reports/{rid}/proof",
+        json={"photo_url": "https://example.com/blurry.jpg", "description": "done", "time_spent_minutes": 12},
+        headers=auth(helper["token"]),
+    )
+
+    real = reports_router.score_submission_from_dict
+    reports_router.score_submission_from_dict = lambda d: {
+        "points": 0, "tier_points": 0, "authenticity_confidence": 0.13,
+        "rationale": "Reads as a general street scene rather than a cleanup.",
+    }
+    try:
+        done = client.post(f"/reports/{rid}/complete", headers=auth(poster["token"])).json()
+    finally:
+        reports_router.score_submission_from_dict = real
+
+    assert done["points_awarded"] == 0
+    # The zero is explained on the card instead of looking like a failure.
+    assert "street scene" in done["award_rationale"]
+
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        rows = {u.email: u.tier_points for u in db.query(m.User)
+                .filter(m.User.email.in_(["pia_zero@example.com", "hana_zero@example.com"]))}
+    finally:
+        db.close()
+    assert rows["pia_zero@example.com"] == REPORTER_POINTS
+    assert rows["hana_zero@example.com"] == 0
+
+
+def test_scoring_outage_does_not_consume_the_report(client: TestClient):
+    """An outage is not a verdict. The proof stays, the post stays claimable."""
+    import backend.routers.reports as reports_router
+    from backend import db_models as m
+
+    poster = signup(client, "Pia", "pia_out@example.com")
+    helper = signup(client, "Hana", "hana_out@example.com")
+    report = _create_report(client, poster["token"])
+    rid = report["report_id"]
+    client.post(f"/reports/{rid}/claim", headers=auth(helper["token"]))
+    client.post(
+        f"/reports/{rid}/proof",
+        json={"photo_url": "https://example.com/after.jpg", "description": "all cleared", "time_spent_minutes": 40},
+        headers=auth(helper["token"]),
+    )
+
+    real = reports_router.score_submission_from_dict
+    reports_router.score_submission_from_dict = lambda d: {
+        "points": 0, "tier_points": 0, "authenticity_confidence": 0.0,
+        "rationale": "We couldn't verify this submission right now.",
+        "scoring_unavailable": True,
+    }
+    try:
+        resp = client.post(f"/reports/{rid}/complete", headers=auth(poster["token"]))
+    finally:
+        reports_router.score_submission_from_dict = real
+    assert resp.status_code == 503
+
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        row = db.query(m.Report).filter(m.Report.id == rid).one()
+        assert row.status == "claimed", "an outage must not mark the report done"
+        assert row.proof_photo_url is not None, "the helper's proof must survive"
+        assert db.query(m.Submission).filter(m.Submission.deed_type == "community_cleanup").count() == 0
+    finally:
+        db.close()
+
+    # Once the scorer is back, the same confirmation works and pays out.
+    retry = client.post(f"/reports/{rid}/complete", headers=auth(poster["token"]))
+    assert retry.status_code == 200
+    assert retry.json()["points_awarded"] > 0
+
+
+def test_comment_delete_is_a_real_database_delete_and_respects_ownership(client: TestClient):
+    """Author deletes their own; deed owner can moderate; strangers cannot."""
+    from backend import db_models as m
+
+    owner = signup(client, "Owen", "owen_cmt@example.com")
+    author = signup(client, "Ana", "ana_cmt@example.com")
+    nosy = signup(client, "Nico", "nico_cmt@example.com")
+
+    # The feed is friends-only, so put all three in one group first.
+    code = client.post("/friends/invite", headers=auth(owner["token"])).json()["invite_code"]
+    for u in (author, nosy):
+        client.post("/friends/join", json={"invite_code": code}, headers=auth(u["token"]))
+
+    sid = _submit(client, owner["token"])["id"]
+
+    def comment(tok, text):
+        r = client.post(f"/feed/{sid}/comment", json={"text": text}, headers=auth(tok))
+        assert r.status_code == 200, r.text
+        return r.json()["comments"][-1]["id"]
+
+    mine = comment(author["token"], "Nice work!")
+    other = comment(nosy["token"], "Second that")
+
+    def count():
+        db = next(app.dependency_overrides[get_db]())
+        try:
+            return db.query(m.Comment).count()
+        finally:
+            db.close()
+
+    assert count() == 2
+
+    # A stranger can't delete someone else's comment on someone else's deed.
+    assert client.delete(f"/feed/comments/{mine}", headers=auth(nosy["token"])).status_code == 403
+    assert count() == 2
+
+    # The author can delete their own -- and the row is gone, not hidden.
+    assert client.delete(f"/feed/comments/{mine}", headers=auth(author["token"])).status_code == 204
+    assert count() == 1
+
+    # The deed owner can moderate a comment left on their own deed.
+    assert client.delete(f"/feed/comments/{other}", headers=auth(owner["token"])).status_code == 204
+    assert count() == 0
+
+    # Deleting twice is a no-op, not an error -- double-taps shouldn't 500.
+    assert client.delete(f"/feed/comments/{mine}", headers=auth(author["token"])).status_code == 204
+
+
+def test_refresh_endpoint_is_disabled_without_a_token(client: TestClient):
+    """No secret configured means 404, not an open endpoint.
+
+    This triggers a full Places fan-out, so leaving it reachable would let
+    anyone run up the project's API bill.
+    """
+    import backend.routers.admin as admin
+    assert admin.REFRESH_TOKEN == "", "tests must not run with a real refresh token set"
+    assert client.post("/admin/refresh-opportunities").status_code == 404
+
+
+def test_refresh_endpoint_rejects_a_wrong_token(client: TestClient, monkeypatch):
+    import backend.routers.admin as admin
+    monkeypatch.setattr(admin, "REFRESH_TOKEN", "s3cret")
+
+    assert client.post("/admin/refresh-opportunities").status_code == 401
+    assert client.post(
+        "/admin/refresh-opportunities", headers={"X-Refresh-Token": "guess"}
+    ).status_code == 401
+    # Correct token gets through.
+    ok = client.post("/admin/refresh-opportunities", headers={"X-Refresh-Token": "s3cret"})
+    assert ok.status_code == 200, ok.text
+    assert set(ok.json()) == {"areas", "refreshed", "skipped", "failed", "rows"}
+
+
+def test_daily_refresh_is_idempotent_and_does_not_duplicate_rows(client: TestClient, monkeypatch):
+    """Running the refresh twice must leave one copy of each area, not two."""
+    import backend.routers.admin as admin
+    from backend import db_models as m
+
+    from backend.routers.quests import _cache_key, _replace_cache
+
+    # Seed a cached area the same way the quest lookup does. (The live cold
+    # path writes on a background thread with its own session, which does
+    # not see this test's in-memory database.)
+    key = _cache_key(OAKLAND["lat"], OAKLAND["lng"], 16.0)
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        _replace_cache(db, key, [
+            {"org_name": f"Org {i}", "address": f"{i} Main St",
+             "lat": OAKLAND["lat"], "lng": OAKLAND["lng"], "category": "food_bank",
+             "legitimacy_score": 0.8, "quest_type": "daily"}
+            for i in range(3)
+        ])
+        db.commit()
+    finally:
+        db.close()
+
+    def rows():
+        db = next(app.dependency_overrides[get_db]())
+        try:
+            return db.query(m.Opportunity).count(), {
+                k for (k,) in db.query(m.Opportunity.cache_key).distinct()
+            }
+        finally:
+            db.close()
+
+    seeded_count, seeded_keys = rows()
+    assert seeded_count == 3 and seeded_keys == {key}
+
+    monkeypatch.setattr(admin, "REFRESH_TOKEN", "s3cret")
+    hdr = {"X-Refresh-Token": "s3cret"}
+
+    first = client.post("/admin/refresh-opportunities", headers=hdr).json()
+    after_one = rows()
+    second = client.post("/admin/refresh-opportunities", headers=hdr).json()
+    after_two = rows()
+
+    assert first["areas"] == len(seeded_keys)
+    assert first["refreshed"] >= 1, first
+    # The row count is identical after one run and after two -- replaced, not appended.
+    assert after_one == after_two, (after_one, after_two)
+    assert after_two[1] == seeded_keys, "refresh must not invent new cache areas"
+    assert second["areas"] == first["areas"]
+
+
+def test_refresh_survives_one_bad_area(monkeypatch):
+    """A single failing area must not abort the sweep or lose the others."""
+    from backend import refresh as r
+
+    calls = []
+
+    def flaky(lat, lng, radius, **kw):
+        calls.append(lat)
+        if lat == 1.0:
+            raise RuntimeError("Places timed out")
+        return [{
+            "org_name": "Shelter", "address": "1 Main St", "lat": lat, "lng": lng,
+            "category": "shelter", "legitimacy_score": 0.8, "quest_type": "daily",
+        }]
+
+    class FakeQuery:
+        def distinct(self): return self
+        def limit(self, n): return [("1.000:2.000:16",), ("3.000:4.000:16",)]
+
+    class FakeDB:
+        def query(self, *a): return FakeQuery()
+        def commit(self): pass
+
+    monkeypatch.setattr("backend.agent_client.find_opportunities", flaky)
+    monkeypatch.setattr("backend.routers.quests._replace_cache", lambda db, k, o: None)
+
+    out = r.refresh_cached_areas(FakeDB())
+    assert out == {"areas": 2, "refreshed": 1, "skipped": 0, "failed": 1, "rows": 1}, out
+    assert calls == [1.0, 3.0], "the sweep continued past the failure"
+
+
+def test_cache_key_round_trips_to_coordinates():
+    """The refresh re-derives coordinates from the cache key, so the two
+    must stay in step. A silent parse failure would skip every area."""
+    from backend.refresh import _parse_cache_key
+    from backend.routers.quests import _cache_key
+
+    key = _cache_key(39.3312, -76.6205, 16.0)
+    parsed = _parse_cache_key(key)
+    assert parsed is not None, key
+    lat, lng, radius = parsed
+    assert abs(lat - 39.33) < 0.02 and abs(lng - (-76.62)) < 0.02 and radius == 16.0
+    assert _parse_cache_key("garbage") is None
+    assert _parse_cache_key("a:b:c") is None
+
+
+def test_scheduler_targets_eight_in_the_morning():
+    from datetime import datetime, timedelta
+    from backend.refresh import REFRESH_HOUR, _seconds_until_next_run
+
+    assert REFRESH_HOUR == 8
+    secs = _seconds_until_next_run()
+    assert 0 < secs <= 24 * 3600
+    when = datetime.now().astimezone() + timedelta(seconds=secs)
+    assert when.hour == 8 and when.minute == 0

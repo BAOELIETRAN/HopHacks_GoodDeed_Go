@@ -423,6 +423,7 @@ class ReportOut(BaseModel):
     estimated_points: int
     awaiting_confirmation: bool  # claimed + proof submitted, waiting on the poster
     points_awarded: Optional[int]
+    award_rationale: Optional[str] = None
     # Who is looking, so the UI can pick the right action without re-deriving
     # it from ids on every card.
     is_mine: bool = False          # the requester posted it

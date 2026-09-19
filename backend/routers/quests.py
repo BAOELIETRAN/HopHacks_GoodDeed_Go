@@ -29,9 +29,9 @@ def _cache_key(lat: float, lng: float, radius_km: float) -> str:
 
 
 def _cap_for(radius_km: float) -> int:
-    """More area searched, more pins. A fixed cap meant a 25-mile search
-    returned the same twenty results as a 1-mile one, which makes the radius
-    control look broken even when it is working."""
+    """More area searched, more pins. Clients all send the same 10-mile
+    radius now, but the daily refresh still sweeps older cached areas at
+    whatever radius they were stored with."""
     return max(20, min(60, int(radius_km * 4)))
 
 

@@ -414,3 +414,5 @@ class Report(Base):
     proof_time_spent_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     points_awarded: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Why that number. A zero with no explanation reads as a bug.
+    award_rationale: Mapped[str | None] = mapped_column(String(600), nullable=True)

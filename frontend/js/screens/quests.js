@@ -4,7 +4,7 @@ import { api, getLocation } from "../api.js";
 import { radiusKm } from "../config.js";
 import {
   directionsUrl, distanceLabel, empty, esc, h, icon, orgLink, prettyCategory,
-  radiusPicker, spinner, statusbar,
+  spinner, statusbar,
 } from "../ui.js";
 import { go } from "../router.js";
 
@@ -18,7 +18,6 @@ export async function renderQuests(root) {
       <h2>Quests near you</h2>
       <p class="muted" style="margin-top:4px">Daily drop-ins and monthly commitments.</p>
     </div>
-    <div class="pad" style="padding-top:0;padding-bottom:8px" id="radius-slot"></div>
     <div class="pad" style="padding-top:0;padding-bottom:8px">
       <div class="pills" id="filters">
         <button data-f="all" aria-selected="${filter === "all"}">All</button>
@@ -30,15 +29,7 @@ export async function renderQuests(root) {
 
   const list = root.querySelector("#list");
   const loc = await getLocation();
-  let quests = await api.quests(loc.lat, loc.lng, radiusKm());
-
-  root.querySelector("#radius-slot").replaceChildren(
-    radiusPicker(async () => {
-      list.innerHTML = spinner();
-      quests = await api.quests(loc.lat, loc.lng, radiusKm());
-      draw();
-    }),
-  );
+  const quests = await api.quests(loc.lat, loc.lng, radiusKm());
 
   const draw = () => {
     const shown = filter === "all" ? quests : quests.filter((q) => q.quest_type === filter);

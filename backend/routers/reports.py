@@ -70,6 +70,7 @@ def _to_out(db: DbSession, row: m.Report, viewer: m.User | None = None) -> Repor
         estimated_points=estimate_points(row.category),
         awaiting_confirmation=row.status == "claimed" and row.proof_photo_url is not None,
         points_awarded=row.points_awarded,
+        award_rationale=row.award_rationale,
         is_mine=bool(viewer and row.reported_by == viewer.id),
         claimed_by_me=bool(viewer and _is_helper(db, row.id, viewer.id)),
         total_slots=row.total_slots or 1,
@@ -333,6 +334,18 @@ def complete_report(
     }
     score = score_submission_from_dict(submission_dict)
 
+    # The scorer was unreachable, which is not the helper's fault. Leave the
+    # report claimed with its proof intact so the poster can confirm again
+    # once the service is back, rather than burning the work on a zero.
+    if score.get("scoring_unavailable"):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "We can't verify the photo right now, so we haven't scored this yet. "
+                "Your proof is saved — try confirming again shortly."
+            ),
+        )
+
     # One scored submission per helper, so the deed shows up on each of
     # their profiles and feeds, and every one of them moves their companion.
     for helper in helpers:
@@ -358,16 +371,19 @@ def complete_report(
         if score["points"] > 0:
             record_activity(helper)
 
-    # The poster did something too -- they spotted it and wrote it up.
-    # A small, fixed amount, well under what the work is worth.
-    if score["points"] > 0:
-        user.tier_points += REPORTER_POINTS
-        user.tier = tier_for_points(user.tier_points)
-        record_activity(user)
+    # The poster did something too -- they spotted a real problem and wrote
+    # it up, and that post already passed its own AI check when it was
+    # created. Their award does not hang on how good someone else's
+    # after-photo turned out; that would penalise them for another
+    # person's camera work.
+    user.tier_points += REPORTER_POINTS
+    user.tier = tier_for_points(user.tier_points)
+    record_activity(user)
 
     row.status = "done"
     row.confirmed_at = datetime.now(timezone.utc).isoformat()
     row.points_awarded = score["points"]
+    row.award_rationale = score["rationale"]
 
     db.commit()
     db.refresh(row)

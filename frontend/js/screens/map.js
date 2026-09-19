@@ -3,7 +3,7 @@
 import { api, getLocation, state } from "../api.js";
 import { radiusKm } from "../config.js";
 import {
-  directionsUrl, distanceLabel, esc, h, icon, radiusPicker, statusbar, toast,
+  directionsUrl, distanceLabel, esc, h, icon, statusbar, toast,
 } from "../ui.js";
 import { go } from "../router.js";
 import { quoteOfTheDay } from "../quotes.js";
@@ -37,7 +37,6 @@ export async function renderMap(root) {
       </div>
     </div>
     ${quoteCard()}
-    <div class="pad" style="padding-top:0;padding-bottom:10px" id="radius-slot"></div>
     <div id="map"></div>
     <div class="map-legend">
       <span><span class="legend-dot" style="background:var(--green)"></span>Verified nonprofit</span>
@@ -65,13 +64,6 @@ export async function renderMap(root) {
     renderHighlight(root.querySelector("#map-highlight"), quests);
   };
 
-  root.querySelector("#radius-slot").replaceChildren(
-    radiusPicker(() => {
-      // Rebuild the map so old pins from a wider search don't linger.
-      initLeaflet(loc);
-      load();
-    }),
-  );
 
   await load();
 }

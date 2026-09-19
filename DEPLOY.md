@@ -79,6 +79,7 @@ localhost, deploy, then come back and add the real origin.
    | `ANTHROPIC_API_KEY` | Your Anthropic key |
    | `GOOGLE_MAPS_API_KEY` | Your Maps key, with **Places API (New)** enabled |
    | `GOOGLE_CLIENT_ID` | The OAuth client ID from step 2 |
+   | `REFRESH_TOKEN` | Any long random string. Guards the daily-refresh endpoint; the blueprint generates one for you |
 
 3. Deploy. First build takes ~3 minutes.
 4. Copy the URL Render assigns and **add it to your Google OAuth
@@ -140,3 +141,37 @@ a chat transcript. Once the app is on a public URL:
 
 Anyone can sign up on a public deployment, and every submission costs an
 Anthropic vision call. There is no rate limiting in this build.
+
+
+## Daily opportunity refresh
+
+Cached map results are re-fetched every morning at 08:00, so the first person
+to open the app doesn't wait on a Google fan-out.
+
+Two mechanisms, because neither alone is sufficient on Render's free tier:
+
+* **In-process timer** — armed at startup, fires at the next 08:00 local. Free
+  services sleep when idle, so this only fires if the process happens to be
+  awake. No configuration.
+* **Render Cron Job** — `gooddeed-daily-refresh` in `render.yaml` POSTs to
+  `/admin/refresh-opportunities` at `0 8 * * *`. This is the one that actually
+  holds. Cron jobs require a paid plan; on free, either rely on the in-process
+  timer or point any external scheduler (GitHub Actions, cron-job.org) at the
+  same endpoint.
+
+Trigger it by hand — useful in a demo:
+
+```bash
+curl -X POST "$APP_URL/admin/refresh-opportunities" \
+     -H "X-Refresh-Token: $REFRESH_TOKEN"
+# {"areas":4,"refreshed":4,"skipped":0,"failed":0,"rows":200}
+```
+
+It is idempotent: each area's cached rows are replaced wholesale, so running
+it twice leaves the same data rather than two copies. Only areas someone has
+already looked at are refreshed — guessing at unused cities would burn Places
+quota on maps nobody opens.
+
+With `REFRESH_TOKEN` unset the endpoint returns **404**, not an open route: it
+triggers a full Places fan-out, so leaving it reachable would let anyone run
+up your API bill.

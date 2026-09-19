@@ -170,9 +170,13 @@ def score_submission(
         )
     except Exception as exc:
         log.warning("score_submission failed for %r: %s", org_name, exc)
-        return ScoreResult(
+        # An outage is not a verdict. The caller needs to tell these apart
+        # so it can offer a retry instead of recording a zero.
+        failed = ScoreResult(
             0, 0, 0.0, "We couldn't verify this submission right now. It'll be retried shortly."
         ).to_dict()
+        failed["scoring_unavailable"] = True
+        return failed
 
     confidence = _clamp01(raw.get("authenticity_confidence", 0.0))
     confidence = _apply_penalties(confidence, raw, minutes)

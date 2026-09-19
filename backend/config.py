@@ -110,3 +110,10 @@ VERIFIED_LEGITIMACY_THRESHOLD = 0.7
 # authenticity_confidence or claimed duration yet). Actual awarded points are
 # always computed for real at submission time -- this is a preview only.
 ESTIMATED_POINTS_NOMINAL_MINUTES = 60
+
+# Shared secret for POST /admin/refresh-opportunities, so a Render Cron Job
+# (or a laptop during a demo) can trigger the daily opportunity refresh.
+# Unset means the endpoint is disabled entirely rather than open: an
+# unauthenticated endpoint that burns Places quota is a free DoS on the
+# project's billing.
+REFRESH_TOKEN = os.environ.get("REFRESH_TOKEN", "").strip()

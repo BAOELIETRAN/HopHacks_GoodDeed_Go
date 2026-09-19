@@ -105,12 +105,22 @@ function reportCard(r, reload) {
           </div>
           <h3>${esc(r.description || "Community need")}</h3>
           <p class="tiny" style="margin-top:3px">
-            ${esc(r.reported_by_name || "A neighbour")} · ${timeAgo(r.created_at)} · +${r.estimated_points ?? 20} pts
+            ${esc(r.reported_by_name || "A neighbour")} · ${timeAgo(r.created_at)} · ${
+              // Once it's done, show what was actually awarded. Showing the
+              // estimate on a finished post is how "no points were credited"
+              // looked like a bug when the photo had simply scored low.
+              r.status === "done"
+                ? (r.points_awarded ? `+${r.points_awarded} pts awarded` : "no points awarded")
+                : `+${r.estimated_points ?? 20} pts`
+            }
           </p>
         </div>
       </div>
       ${iClaimed && left
         ? `<p class="tiny" style="margin-top:10px">Add proof before the timer runs out or this returns to the feed.</p>`
+        : ""}
+      ${r.status === "done" && r.award_rationale
+        ? `<p class="tiny rationale" style="margin-top:8px">${esc(r.award_rationale)}</p>`
         : ""}
       <div class="row-between" style="margin-top:12px;gap:10px">
         <a class="btn-directions" data-directions target="_blank" rel="noopener noreferrer">🧭 Directions</a>

@@ -19,10 +19,12 @@ from fastapi.staticfiles import StaticFiles
 from .agent_client import agent_health
 from .config import ALLOWED_ORIGINS
 from .database import Base, engine
+import os
+
 from .migrate import ensure_schema, relax_password_columns
 from .routers import (
-    auth, campaigns, checkins, friends, leaderboard, quests, recap, reports,
-    social, submissions, tasks,
+    admin, auth, campaigns, checkins, friends, leaderboard, quests, recap,
+    reports, social, submissions, tasks,
 )
 
 Base.metadata.create_all(bind=engine)
@@ -76,6 +78,20 @@ app.include_router(submissions.router)
 app.include_router(leaderboard.router)
 app.include_router(friends.router)
 app.include_router(reports.router)
+app.include_router(admin.router)
+
+
+@app.on_event("startup")
+def _start_daily_refresh() -> None:
+    """Arm the 8am opportunity refresh.
+
+    Skipped under pytest: a background timer that outlives the test process
+    and reaches for the network has no business in a test run.
+    """
+    if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("GOODDEED_USE_MOCKS"):
+        return
+    from .refresh import start_scheduler
+    start_scheduler()
 
 
 # Serve the frontend from the same origin as the API. One deployed service
