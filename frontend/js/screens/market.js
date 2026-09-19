@@ -6,7 +6,9 @@
  */
 
 import { api, ApiError, setSession, state } from "../api.js";
-import { empty, esc, h, setupPhotoInput, spinner, statusbar, timeAgo, toast } from "../ui.js";
+import {
+  confirmDelete, empty, esc, h, setupPhotoInput, spinner, statusbar, timeAgo, toast,
+} from "../ui.js";
 
 const PLATFORM_LABEL = { instagram: "Instagram Story", snapchat: "Snapchat", tiktok: "TikTok" };
 const PLATFORM_ICON = { instagram: "📸", snapchat: "👻", tiktok: "🎵" };
@@ -123,14 +125,28 @@ function campaignCard(c, refresh) {
 
   if (c.is_mine) {
     slot.innerHTML = `<span class="status-pill status-${c.status === "done" ? "done" : "open"}">${esc(c.status)}</span>`;
-    if (c.status === "open" || c.status === "claimed") {
-      const cancel = h(`<button class="btn btn-ghost btn-sm">Cancel</button>`);
-      cancel.onclick = async () => {
-        try { await api.cancelCampaign(c.campaign_id); toast("Cancelled — points returned"); refresh(); }
-        catch (err) { toast(err instanceof ApiError ? err.message : "Couldn't cancel", true); }
-      };
-      slot.replaceChildren(cancel);
-    }
+    const del = h(`<button class="delete-btn">Delete</button>`);
+    del.onclick = async () => {
+      const held = c.status === "open" || c.status === "claimed";
+      const yes = await confirmDelete({
+        title: "Delete this campaign?",
+        body: held
+          ? `Your ${c.bounty} held points come straight back.`
+          : "The payout stays in your history.",
+      });
+      if (!yes) return;
+      try {
+        await api.deleteCampaign(c.campaign_id);
+        toast(held ? `Deleted — ${c.bounty} points returned` : "Deleted");
+        refresh();
+      } catch (err) {
+        toast(err instanceof ApiError ? err.message : "Couldn't delete that", true);
+      }
+    };
+    slot.replaceChildren(
+      h(`<span class="status-pill status-${c.status === "done" ? "done" : "open"}">${esc(c.status)}</span>`),
+      del,
+    );
   } else if (c.claimed_by_me && c.status === "claimed") {
     const btn = h(`<button class="btn btn-primary btn-sm">Add proof</button>`);
     btn.onclick = () => renderProof(card.querySelector("[data-proof]"), c, refresh);

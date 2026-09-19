@@ -317,3 +317,29 @@ def cancel_campaign(
     db.commit()
     db.refresh(c)
     return _to_out(c, user)
+
+
+@router.delete("/campaigns/{campaign_id}", status_code=204)
+def delete_campaign(
+    campaign_id: str,
+    db: DbSession = Depends(get_db),
+    user: m.User = Depends(get_current_user),
+) -> None:
+    """Remove a campaign you posted.
+
+    Any bounty still held comes back first, so deleting can never strand
+    points. A campaign that already paid out can still be deleted -- the
+    PointsTransaction rows reference it by id rather than by foreign key,
+    so the ledger survives and the payout stays accountable.
+    """
+    c = db.get(m.Campaign, campaign_id)
+    if c is None:
+        return
+    if c.poster_id != user.id:
+        raise HTTPException(status_code=403, detail="That isn't your campaign")
+
+    if c.status in ("open", "claimed"):
+        release(db, user, c.bounty, c.id, "Campaign deleted")
+
+    db.delete(c)
+    db.commit()

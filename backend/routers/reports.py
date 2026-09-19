@@ -15,6 +15,7 @@ from ..agent_client import (
     tier_for_points,
 )
 from ..config import CLAIM_EXPIRY_HOURS, REPORTER_POINTS
+from ..deletions import deduct
 from ..database import get_db
 from ..deps import get_current_user
 from ..gamification import record_activity
@@ -371,3 +372,34 @@ def complete_report(
     db.commit()
     db.refresh(row)
     return _to_detail(db, row, user)
+
+
+@router.delete("/reports/{report_id}", status_code=204)
+def delete_report(
+    report_id: str,
+    db: DbSession = Depends(get_db),
+    user: m.User = Depends(get_current_user),
+) -> None:
+    """Take down a community post you made.
+
+    Helpers keep whatever they earned. They went out and did the work; the
+    poster changing their mind about the post does not undo that, and
+    clawing it back would be the app taking points off someone for
+    somebody else's decision.
+
+    The poster's own reporter award is returned, since the post is gone.
+    """
+    row = db.get(m.Report, report_id)
+    if row is None:
+        return
+    if row.reported_by != user.id:
+        raise HTTPException(status_code=403, detail="That isn't your post")
+
+    if row.status == "done" and row.points_awarded:
+        deduct(db, user, REPORTER_POINTS, "this post")
+
+    db.query(m.ReportHelper).filter(m.ReportHelper.report_id == row.id).delete(
+        synchronize_session=False
+    )
+    db.delete(row)
+    db.commit()

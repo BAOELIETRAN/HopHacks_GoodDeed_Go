@@ -116,6 +116,12 @@ export const api = {
 
   weeklyRecap: () => withFallback(() => request("/recap/weekly"), null),
 
+  mySubmissions: () => withFallback(() => request("/submissions/mine"), []),
+  deleteSubmission: (id) => request(`/submissions/${id}`, { method: "DELETE" }),
+  deleteReport: (id) => request(`/reports/${id}`, { method: "DELETE" }),
+  deleteCampaign: (id) => request(`/campaigns/${id}`, { method: "DELETE" }),
+  undoTask: (id) => request(`/tasks/${id}/complete`, { method: "DELETE" }),
+
   // --- campaign marketplace -----------------------------------------------
   campaigns: (mine) => withFallback(() => request(`/campaigns${mine ? "?mine=true" : ""}`), []),
   wallet: () => withFallback(() => request("/wallet"), null),

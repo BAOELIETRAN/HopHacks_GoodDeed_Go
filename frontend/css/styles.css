@@ -623,6 +623,21 @@ select option { background: #0f3b32; color: #fff; }
 }
 .sheet-item:active { transform: scale(.985); }
 .sheet-item span { font-size: 20px; }
+.sheet-item.danger { color: #ffb3a4; border-color: rgba(255,140,120,.42); }
+.confirm-head {
+  background: var(--glass-strong); border: 1px solid var(--glass-border);
+  border-radius: var(--r-md); padding: var(--s5); margin-bottom: 4px; text-align: center;
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+}
+.confirm-head strong { display: block; font-size: 16px; }
+.confirm-head span { display: block; font-size: 13px; color: var(--ink-soft); margin-top: 6px; line-height: 1.5; }
+
+.delete-btn {
+  background: none; border: 0; cursor: pointer; font-family: inherit;
+  font-size: 12px; font-weight: 800; color: var(--ink-faint); padding: 6px 8px;
+}
+.delete-btn:hover { color: #ffb3a4; }
+
 .sheet-item.cancel { justify-content: center; color: var(--ink-soft); font-size: 15px; }
 
 @media (min-width: 900px) {

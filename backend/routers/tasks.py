@@ -21,6 +21,7 @@ from .. import db_models as m
 from ..agent_client import tier_for_points
 from ..database import get_db
 from ..deps import get_current_user
+from ..deletions import deduct
 from ..gamification import record_activity
 from ..micro_deeds import BY_ID, DAILY_POINT_CAP, deeds_for_day
 from ..schemas import MicroDeedDoneOut, MicroDeedOut, MicroDeedTodayOut, TaskCompleteIn
@@ -147,3 +148,26 @@ def recent(
                          points=r.points, theme=spec.theme, done=True)
         )
     return out
+
+
+@router.delete("/{deed_id}/complete", status_code=204)
+def undo_task(
+    deed_id: str,
+    db: DbSession = Depends(get_db),
+    user: m.User = Depends(get_current_user),
+) -> None:
+    """Untick an everyday deed, taking its points back with it."""
+    row = (
+        db.query(m.MicroDeedDone)
+        .filter(
+            m.MicroDeedDone.user_id == user.id,
+            m.MicroDeedDone.deed_id == deed_id,
+            m.MicroDeedDone.day == _today(),
+        )
+        .first()
+    )
+    if row is None:
+        return
+    deduct(db, user, row.points or 0, "this deed")
+    db.delete(row)
+    db.commit()

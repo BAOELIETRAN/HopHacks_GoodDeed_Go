@@ -8,8 +8,8 @@
 
 import { api, ApiError } from "../api.js";
 import {
-  deedIcon, empty, esc, h, initials, prettyCategory, spinner, statusbar,
-  tierBadge, timeAgo, toast,
+  confirmDelete, deedIcon, empty, esc, h, initials, prettyCategory, spinner,
+  statusbar, tierBadge, timeAgo, toast,
 } from "../ui.js";
 import { go } from "../router.js";
 
@@ -65,7 +65,10 @@ export function feedCard(item) {
             ${item.org_name ? "· " + esc(item.org_name) : ""} · ${timeAgo(item.created_at)}
           </p>
         </div>
-        <span class="chip chip-quiet">+${item.points}</span>
+        <span class="row" style="gap:6px">
+          <span class="chip chip-quiet">+${item.points}</span>
+          ${item.is_mine ? `<button class="delete-btn" data-del-deed>Delete</button>` : ""}
+        </span>
       </div>
 
       ${item.description
@@ -80,6 +83,24 @@ export function feedCard(item) {
         <button type="submit" class="btn btn-primary btn-sm">Post</button>
       </form>
     </div>`);
+
+  const delDeed = card.querySelector("[data-del-deed]");
+  if (delDeed) {
+    delDeed.onclick = async () => {
+      const yes = await confirmDelete({
+        title: "Delete this deed?",
+        body: `The ${item.points} points it earned will be taken back.`,
+      });
+      if (!yes) return;
+      try {
+        await api.deleteSubmission(item.submission_id);
+        card.remove();
+        toast("Deed deleted");
+      } catch (err) {
+        toast(err instanceof ApiError ? err.message : "Couldn't delete that", true);
+      }
+    };
+  }
 
   paintReactions(card, item);
   paintComments(card, item);
@@ -163,7 +184,24 @@ function paintComments(card, item) {
     ...(hidden > 0
       ? [h(`<p class="tiny" style="margin-bottom:6px">${hidden} earlier comment${hidden === 1 ? "" : "s"}</p>`)]
       : []),
-    ...item.comments.map((c) =>
-      h(`<p class="feed-comment"><strong>${esc(c.user_name)}</strong> ${esc(c.text)}</p>`)),
+    ...item.comments.map((c) => {
+      const row = h(`
+        <p class="feed-comment">
+          <strong>${esc(c.user_name)}</strong> ${esc(c.text)}
+          ${c.is_mine || item.is_mine ? `<button class="delete-btn" data-del-c>×</button>` : ""}
+        </p>`);
+      const del = row.querySelector("[data-del-c]");
+      if (del) {
+        del.onclick = async () => {
+          try {
+            await api.deleteComment(c.id);
+            row.remove();
+          } catch (err) {
+            toast(err instanceof ApiError ? err.message : "Couldn't delete that", true);
+          }
+        };
+      }
+      return row;
+    }),
   );
 }

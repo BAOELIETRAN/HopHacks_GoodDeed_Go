@@ -11,7 +11,7 @@
  */
 
 import { api, ApiError, setSession, state } from "../api.js";
-import { esc, h, spinner, statusbar, toast } from "../ui.js";
+import { confirmDelete, esc, h, spinner, statusbar, toast } from "../ui.js";
 import { go } from "../router.js";
 import { quoteOfTheDay } from "../quotes.js";
 import { activeSessionBanner } from "../ui.js";
@@ -100,10 +100,27 @@ function taskCard(deed, data, reload, companion) {
           <p class="tiny" style="margin-top:3px">+${deed.points} pts</p>
         </div>
         ${deed.done
-          ? `<span class="status-pill status-open">✓ Done</span>`
+          ? `<span class="row" style="gap:6px">
+               <button class="delete-btn" data-undo>Undo</button>
+               <span class="status-pill status-open">✓ Done</span>
+             </span>`
           : `<button class="btn btn-primary btn-sm" data-do>I did it</button>`}
       </div>
     </div>`);
+
+  const undo = card.querySelector("[data-undo]");
+  if (undo) {
+    undo.onclick = async () => {
+      try {
+        await api.undoTask(deed.id);
+        toast(`Undone — ${deed.points} points returned`);
+        reload();
+        companion.paintCompanion();
+      } catch (err) {
+        toast(err?.message || "Couldn't undo that", true);
+      }
+    };
+  }
 
   const btn = card.querySelector("[data-do]");
   if (btn) {

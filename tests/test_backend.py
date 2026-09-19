@@ -526,3 +526,132 @@ def test_submission_time_can_be_trimmed_but_not_inflated(client: TestClient):
 
     trimmed = submit(30)
     assert trimmed["time_spent_minutes"] == 30   # honoured downward
+
+
+# --- deleting your own content -------------------------------------------
+
+
+def test_delete_your_own_deed_reverses_its_points(client: TestClient):
+    token = signup(client, "Dana", "dana.del@example.com")["token"]
+
+    todays = client.get("/tasks/today", headers=auth(token)).json()["deeds"]
+    first = todays[0]
+    client.post(f"/tasks/{first['id']}/complete", json={}, headers=auth(token))
+    after = client.get("/auth/me", headers=auth(token)).json()["tier_points"]
+    assert after == first["points"]
+
+    assert client.delete(f"/tasks/{first['id']}/complete", headers=auth(token)).status_code == 204
+    assert client.get("/auth/me", headers=auth(token)).json()["tier_points"] == 0
+
+    # Undoing something that isn't there is not an error.
+    assert client.delete(f"/tasks/{first['id']}/complete", headers=auth(token)).status_code == 204
+
+
+def test_only_the_owner_can_delete(client: TestClient):
+    owner = signup(client, "Omar", "omar.del@example.com")["token"]
+    other = signup(client, "Nia", "nia.del@example.com")["token"]
+
+    report = client.post(
+        "/reports",
+        json={
+            "photo_url": "https://example.com/trash.jpg",
+            "description": "Bags dumped by the hedge on the corner.",
+            "lat": 39.3299, "lng": -76.6205,
+        },
+        headers=auth(owner),
+    ).json()
+    rid = report["report_id"]
+
+    assert client.delete(f"/reports/{rid}", headers=auth(other)).status_code == 403
+    assert client.delete(f"/reports/{rid}", headers=auth(owner)).status_code == 204
+
+    rows = client.get(
+        "/reports", params={"lat": 39.3299, "lng": -76.6205, "radius": 16},
+        headers=auth(owner),
+    ).json()
+    assert not any(r["report_id"] == rid for r in rows)
+
+
+def test_deleting_a_post_never_claws_back_a_helpers_points(client: TestClient):
+    """The poster changing their mind must not cost the helper.
+
+    They went out and did the work. Taking points off someone for another
+    person's decision would be the app punishing the wrong party.
+    """
+    poster = signup(client, "Pia", "pia.del@example.com")["token"]
+    helper = signup(client, "Hal", "hal.del@example.com")["token"]
+
+    report = client.post(
+        "/reports",
+        json={
+            "photo_url": "https://example.com/trash.jpg",
+            "description": "Fly-tipped bags behind the shops need clearing.",
+            "lat": 39.3299, "lng": -76.6205,
+        },
+        headers=auth(poster),
+    ).json()
+    rid = report["report_id"]
+
+    client.post(f"/reports/{rid}/claim", headers=auth(helper))
+    client.post(
+        f"/reports/{rid}/proof",
+        json={
+            "photo_url": "https://example.com/after.jpg",
+            "description": "Bagged it all and stacked it for collection.",
+            "time_spent_minutes": 30,
+        },
+        headers=auth(helper),
+    )
+    client.post(f"/reports/{rid}/complete", headers=auth(poster))
+
+    earned = client.get("/auth/me", headers=auth(helper)).json()["tier_points"]
+    assert earned > 0
+
+    client.delete(f"/reports/{rid}", headers=auth(poster))
+    assert client.get("/auth/me", headers=auth(helper)).json()["tier_points"] == earned
+
+
+def test_deletion_cannot_strand_escrowed_points(client: TestClient):
+    """Points held against an open bounty are promised to someone.
+
+    A deletion that would drop the total below what is escrowed is refused
+    rather than producing an incoherent wallet.
+    """
+    from backend import db_models as dm
+    from backend.database import get_db
+
+    token = signup(client, "Esme", "esme.del@example.com")["token"]
+    for deed in client.get("/tasks/today", headers=auth(token)).json()["deeds"][:3]:
+        client.post(f"/tasks/{deed['id']}/complete", json={}, headers=auth(token))
+
+    me = client.get("/auth/me", headers=auth(token)).json()
+    total = me["tier_points"]
+    assert total > 0
+
+    # Hold the whole balance directly, skipping the live link check.
+    db = next(app.dependency_overrides[get_db]())
+    user = db.query(dm.User).filter(dm.User.email == "esme.del@example.com").one()
+    user.escrow_points = total
+    db.commit()
+    db.close()
+
+    wallet = client.get("/wallet", headers=auth(token)).json()
+    assert wallet["available_points"] == 0
+    assert wallet["escrow_points"] == total
+
+    deed = client.get("/tasks/today", headers=auth(token)).json()["deeds"][0]
+    resp = client.delete(f"/tasks/{deed['id']}/complete", headers=auth(token))
+    assert resp.status_code == 409
+    assert "held" in resp.json()["detail"]
+
+    # Nothing moved.
+    assert client.get("/auth/me", headers=auth(token)).json()["tier_points"] == total
+
+
+def test_wallet_split_always_sums_to_the_total(client: TestClient):
+    token = signup(client, "Wally", "wally.del@example.com")["token"]
+    for deed in client.get("/tasks/today", headers=auth(token)).json()["deeds"][:2]:
+        client.post(f"/tasks/{deed['id']}/complete", json={}, headers=auth(token))
+
+    w = client.get("/wallet", headers=auth(token)).json()
+    assert w["available_points"] + w["escrow_points"] == w["total_points"]

@@ -171,6 +171,36 @@ export async function activeSessionBanner(mount) {
   mount.replaceChildren(el);
 }
 
+/** Ask before destroying something.
+ *
+ *  Deletion here removes points and, for a community post, work other
+ *  people can see. A misplaced tap should not be able to do that silently,
+ *  and an undo would be more machinery than a confirm is worth.
+ */
+export function confirmDelete({ title, body, confirmLabel = "Delete" }) {
+  return new Promise((resolve) => {
+    const sheet = h(`
+      <div class="sheet-overlay" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+        <div class="sheet">
+          <div class="confirm-head">
+            <strong>${esc(title)}</strong>
+            ${body ? `<span>${esc(body)}</span>` : ""}
+          </div>
+          <button class="sheet-item danger" data-yes>${esc(confirmLabel)}</button>
+          <button class="sheet-item cancel" data-no>Keep it</button>
+        </div>
+      </div>`);
+    const done = (answer) => { sheet.remove(); resolve(answer); };
+    sheet.querySelector("[data-yes]").onclick = () => done(true);
+    sheet.querySelector("[data-no]").onclick = () => done(false);
+    sheet.onclick = (e) => { if (e.target === sheet) done(false); };
+    document.addEventListener("keydown", function esc2(e) {
+      if (e.key === "Escape") { document.removeEventListener("keydown", esc2); done(false); }
+    });
+    (document.getElementById("app") || document.body).appendChild(sheet);
+  });
+}
+
 let toastTimer;
 export function toast(message, isError = false) {
   document.querySelector(".toast")?.remove();

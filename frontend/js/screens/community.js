@@ -3,8 +3,8 @@
 import { api, ApiError, getLocation } from "../api.js";
 import { radiusKm } from "../config.js";
 import {
-  directionsUrl, empty, esc, h, REPORT_ICON, setupPhotoInput, spinner, statusbar,
-  timeAgo, timeLeft, toast,
+  confirmDelete, directionsUrl, empty, esc, h, REPORT_ICON, setupPhotoInput,
+  spinner, statusbar, timeAgo, timeLeft, toast,
 } from "../ui.js";
 import { go } from "../router.js";
 
@@ -114,11 +114,34 @@ function reportCard(r, reload) {
         : ""}
       <div class="row-between" style="margin-top:12px;gap:10px">
         <a class="btn-directions" data-directions target="_blank" rel="noopener noreferrer">🧭 Directions</a>
-        <span data-slot>${action}</span>
+        <span class="row" style="gap:6px">
+          ${mine ? `<button class="delete-btn" data-delete>Delete</button>` : ""}
+          <span data-slot>${action}</span>
+        </span>
       </div>
     </div>`);
 
   card.querySelector("[data-directions]").href = directionsUrl(r.lat, r.lng);
+
+  const del = card.querySelector("[data-delete]");
+  if (del) {
+    del.onclick = async () => {
+      const yes = await confirmDelete({
+        title: "Delete this post?",
+        body: r.filled_slots
+          ? `${r.filled_slots} ${r.filled_slots === 1 ? "person has" : "people have"} already joined. They keep any points they earned.`
+          : "It'll be removed for everyone.",
+      });
+      if (!yes) return;
+      try {
+        await api.deleteReport(r.report_id);
+        toast("Post deleted");
+        reload();
+      } catch (err) {
+        toast(err instanceof ApiError ? err.message : "Couldn't delete that", true);
+      }
+    };
+  }
 
   const btn = card.querySelector("[data-act]");
   if (btn) {

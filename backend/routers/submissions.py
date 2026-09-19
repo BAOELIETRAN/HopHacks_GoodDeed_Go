@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session as DbSession
 
@@ -13,6 +13,7 @@ from ..agent_client import (
 from gooddeed_agent.deeds import DEEDS, get_deed
 from ..config import VERIFIED_PRESENCE_MULTIPLIER
 from ..database import get_db
+from ..deletions import deduct, purge_submission
 from ..deps import get_current_user
 from ..gamification import record_activity
 from ..schemas import DeedTypeOut, SubmissionCreate, SubmissionOut
@@ -146,3 +147,49 @@ def create_submission(
         verified_presence=row.verified_presence,
         deed_type=row.deed_type,
     )
+
+
+@router.get("/submissions/mine", response_model=list[SubmissionOut])
+def my_submissions(
+    db: DbSession = Depends(get_db), user: m.User = Depends(get_current_user)
+) -> list[SubmissionOut]:
+    """Everything you have logged, newest first -- your own history."""
+    rows = (
+        db.query(m.Submission)
+        .filter(m.Submission.user_id == user.id)
+        .order_by(m.Submission.scored_at.desc())
+        .limit(200)
+        .all()
+    )
+    return [
+        SubmissionOut(
+            id=r.id, user_id=r.user_id, org_name=r.org_name, photo_url=r.photo_url,
+            description=r.description, time_spent_minutes=r.time_spent_minutes,
+            lat=r.lat, lng=r.lng, submitted_at=r.submitted_at,
+            points=r.points, tier_points=r.tier_points,
+            authenticity_confidence=r.authenticity_confidence, rationale=r.rationale,
+            user_tier=user.tier, user_tier_points=user.tier_points,
+            current_streak=user.current_streak, is_personal_best=False,
+            verified_presence=bool(r.verified_presence),
+            deed_type=r.deed_type or "volunteer",
+        )
+        for r in rows
+    ]
+
+
+@router.delete("/submissions/{submission_id}", status_code=204)
+def delete_submission(
+    submission_id: str,
+    db: DbSession = Depends(get_db),
+    user: m.User = Depends(get_current_user),
+) -> None:
+    """Delete a deed you logged, and take back the points it earned you."""
+    row = db.get(m.Submission, submission_id)
+    if row is None:
+        return  # already gone; deleting twice is not an error
+    if row.user_id != user.id:
+        raise HTTPException(status_code=403, detail="That isn't yours to delete")
+
+    deduct(db, user, row.tier_points or 0, "this deed")
+    purge_submission(db, row)
+    db.commit()
