@@ -3,6 +3,7 @@
 import { api, ApiError, clearSession, state } from "../api.js";
 import { esc, h, statusbar, tierBadge, toast } from "../ui.js";
 import { go } from "../router.js";
+import { stopLiveActivity } from "../live.js";
 import { companionSvg, nextStage, stageFor, stageProgress, STAGES } from "../companion.js";
 import { tierBar } from "../celebrate.js";
 
@@ -187,7 +188,7 @@ export async function renderProfile(root) {
     }
   };
 
-  const signOut = () => { clearSession(); go("welcome"); };
+  const signOut = () => { stopLiveActivity(); clearSession(); go("welcome"); };
   root.querySelector("[data-signout]").onclick = signOut;
   root.querySelector("[data-out]").onclick = signOut;
 }

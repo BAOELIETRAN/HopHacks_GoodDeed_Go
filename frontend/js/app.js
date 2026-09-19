@@ -9,6 +9,7 @@ import { renderActive, teardownActive } from "./screens/active.js";
 import { renderToday } from "./screens/today.js";
 import { renderFeed } from "./screens/feed.js";
 import { maybeShowRecap } from "./recap.js";
+import { startLiveActivity, stopLiveActivity } from "./live.js";
 import { renderQuests } from "./screens/quests.js";
 import { renderLeaderboard } from "./screens/leaderboard.js";
 import { renderCommunity, renderProof, renderReportForm } from "./screens/community.js";
@@ -68,4 +69,5 @@ dispatch();
 // never delays the app's first render. Signed-out users never see it.
 if (state.token) {
   setTimeout(() => { maybeShowRecap(); }, 1200);
+  startLiveActivity();
 }
