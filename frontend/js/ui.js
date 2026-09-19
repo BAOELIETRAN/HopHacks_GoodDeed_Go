@@ -1,6 +1,9 @@
 /* Small shared UI helpers. No framework -- these keep the screens declarative
    without pulling in a build step. */
 
+import { hasIcon, ico } from "./icons.js";
+
+export { ico };
 
 export const h = (html) => {
   const t = document.createElement("template");
@@ -17,25 +20,33 @@ export const esc = (value) =>
 export const tierBadge = (tier) =>
   `<span class="tier-badge tier-${esc(tier)}">${esc(tier)}</span>`;
 
-export const CATEGORY_ICON = {
-  food_bank: "🥕", homeless_shelter: "🏠", animal_shelter: "🐾", environmental: "🌿",
-  community_cleanup: "🧹", education: "📚", healthcare: "🩺", senior_care: "🌻",
-  youth_program: "⭐", crisis_support: "💛", veterans: "🎖️", disability_services: "🤝",
-  refugee_services: "🕊️", arts_culture: "🎨", disaster_relief: "🚨",
-  thrift_donation: "👕", religious: "🕊️", community_center: "🏛️", other: "✨",
-};
-export const icon = (category) => CATEGORY_ICON[category] || CATEGORY_ICON.other;
+/** The app's mark: a map pin with a tick in it, on the brand green. Drawn here, not
+ *  an emoji, so it matches the favicon and scales cleanly. */
+export const logoMark = (size = 28) => `
+  <svg width="${size}" height="${size}" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+    <rect width="32" height="32" rx="8" style="fill:var(--brand)"/>
+    <g fill="none" stroke="#fdfbf5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M25 13.5c0 6.2-6.9 12.7-9.2 14.7a1.3 1.3 0 0 1-1.6 0C11.9 26.2 5 19.7 5 13.5a10 10 0 0 1 20 0"/>
+      <path d="m11.5 13.5 3 3 5-5.5"/>
+    </g>
+  </svg>`;
 
-export const DEED_ICON = {
-  volunteer: "🙌", donation_money: "💳", donation_item: "📦", fundraising: "🎽",
-  kindness: "💛", remote: "💻", advocacy: "📣", blood_donation: "🩸",
-};
-export const deedIcon = (key) => DEED_ICON[key] || DEED_ICON.volunteer;
+/* --- Icons ------------------------------------------------------------------
+   The server sends emoji for a few things (a deed type's icon, an everyday deed's
+   icon). Those are ignored: everything is drawn from the one icon family in
+   icons.js, keyed by the server's own stable ids. */
 
-export const REPORT_ICON = {
-  litter: "🗑️", illegal_dumping: "🚮", graffiti: "🎨", broken_infrastructure: "🔧",
-  overgrowth: "🌳", hazard: "⚠️", abandoned_item: "📦", other: "📍",
-};
+/** A quest's category icon. */
+export const icon = (category, opts) => ico(hasIcon(category) ? category : "other", opts);
+
+/** A deed type's icon (volunteer, donation_money, ...). */
+export const deedIcon = (key, opts) => ico(hasIcon(key) ? key : "volunteer", opts);
+
+/** An everyday good deed's icon, by its id. */
+export const microIcon = (id, opts) => ico(hasIcon(id) ? id : "kindness", opts);
+
+/** A community report's category icon. */
+export const reportIcon = (category, opts) => ico(hasIcon(category) ? category : "pin", opts);
 
 export const prettyCategory = (c) =>
   String(c || "other").replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
@@ -98,6 +109,34 @@ export function timeLeft(iso) {
   return `${Math.floor(mins / 60)}h ${mins % 60}m left`;
 }
 
+/* --- The ink stamp -----------------------------------------------------------
+   Marks a verified deed. It sits a little crooked, and each one differently:
+   the tilt is derived from a seed (a report id, a date), so the same item always
+   lands the same way but two items never line up. */
+
+const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+
+/** "19 SEP 2026" -- the date as a rubber stamp would print it. */
+export function stampDate(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  if (!isFinite(d.getTime())) return "";
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+/** A stable tilt in degrees, between 2 and 8 either way, from any string. */
+export function tiltFor(seed = "") {
+  let n = 0;
+  for (const ch of String(seed)) n = (n * 31 + ch.charCodeAt(0)) >>> 0;
+  const magnitude = 2 + (n % 60) / 10;
+  return (n & 64 ? 1 : -1) * magnitude;
+}
+
+/** Stamp markup. `tone` is "ok" (green) or "no" (red); `slam` plays the thump-down once. */
+export function stamp(label, { sub = "", tone = "ok", seed = label, slam = false, small = false } = {}) {
+  const cls = `stamp${tone === "no" ? " stamp-no" : ""}${small ? " stamp-sm" : ""}${slam ? " slam" : ""}`;
+  return `<span class="${cls}" style="--tilt:${tiltFor(seed).toFixed(1)}deg">${esc(label)}${
+    sub ? `<small>${esc(sub)}</small>` : ""}</span>`;
+}
 
 /** A "quest running" bar, shown wherever the user happens to be. */
 export async function activeSessionBanner(mount) {
@@ -173,31 +212,52 @@ export function confirmDelete({ title, body, confirmLabel = "Delete" }) {
       if (e.key === "Escape") { document.removeEventListener("keydown", esc2); done(false); }
     });
     (document.getElementById("app") || document.body).appendChild(sheet);
+    sheet.querySelector("[data-no]").focus();
   });
 }
 
 let toastTimer;
 export function toast(message, isError = false) {
   document.querySelector(".toast")?.remove();
-  const el = h(`<div class="toast${isError ? " error" : ""}">${esc(message)}</div>`);
+  // Errors interrupt a screen reader; everything else waits its turn.
+  const el = h(`<div class="toast${isError ? " error" : ""}" role="${isError ? "alert" : "status"}">${esc(message)}</div>`);
   document.body.appendChild(el);
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.remove(), 3400);
+  toastTimer = setTimeout(() => el.remove(), 3800);
 }
 
-export const spinner = () => `<div class="spinner"></div>`;
+/* --- Loading and empty states ---------------------------------------------------
+   A blank screen or a spinner tells you nothing. A loading state keeps the shape of
+   what is coming, and an empty state says what the place is for and what to do next. */
 
-export const empty = (emoji, title, sub = "") => `
-  <div class="empty">
-    <div class="big">${emoji}</div>
-    <h3>${esc(title)}</h3>
-    ${sub ? `<p class="muted" style="margin-top:8px">${esc(sub)}</p>` : ""}
-  </div>`;
+/** Placeholder rows shaped like a card, shown while a list loads. */
+export const skeleton = (count = 3) => `
+  <div class="sk-list" aria-hidden="true">
+    ${Array.from({ length: count }, () => `
+      <div class="sk-card">
+        <div class="sk sk-block"></div>
+        <div class="sk-lines">
+          <div class="sk sk-line w40"></div>
+          <div class="sk sk-line w85"></div>
+          <div class="sk sk-line w60"></div>
+        </div>
+      </div>`).join("")}
+  </div>
+  <span class="sr-only" role="status">Loading</span>`;
 
-/* The mock phone status bar is gone: this is a web app, and drawing a
-   fake 9:41 and battery icon above the browser's own chrome just looked
-   like a rendering error. Kept as a no-op so every screen needn't change. */
-export const statusbar = () => "";
+/** An empty list, with a reason and (usually) a next step.
+ *  `action` is `{ label, onClick }`; returns an element so the handler can be attached. */
+export function emptyState({ icon: name = "inbox", title, body = "", action = null }) {
+  const el = h(`
+    <div class="empty-state">
+      <div class="empty-art">${ico(name, { size: 28 })}</div>
+      <h3>${esc(title)}</h3>
+      ${body ? `<p>${esc(body)}</p>` : ""}
+      ${action ? `<button class="btn btn-ghost" data-empty-action>${esc(action.label)}</button>` : ""}
+    </div>`);
+  if (action) el.querySelector("[data-empty-action]").onclick = action.onClick;
+  return el;
+}
 
 /* Photo capture (upload or camera, preview, retake) lives in photo.js so the
    pure parts can be tested without a DOM. Re-exported so every screen keeps

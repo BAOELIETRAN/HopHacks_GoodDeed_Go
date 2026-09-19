@@ -1,69 +1,69 @@
 /* Profile: tier progress, streak, badges. */
 
 import { api, ApiError, clearSession, state } from "../api.js";
-import { esc, h, statusbar, tierBadge, toast } from "../ui.js";
+import { esc, h, ico, tierBadge, toast } from "../ui.js";
 import { go } from "../router.js";
 import { stopLiveActivity } from "../live.js";
 import { companionSvg, nextStage, stageFor, stageProgress, STAGES } from "../companion.js";
 import { tierBar } from "../celebrate.js";
 
 const ALL_BADGES = [
-  { code: "first_shift", label: "First Shift", emoji: "🥕" },
-  { code: "ten_day_streak", label: "10-Day Streak", emoji: "🔥" },
-  { code: "trusted_10", label: "Trusted 10", emoji: "🛡️" },
+  { code: "first_shift", label: "First shift", icon: "badge_first" },
+  { code: "ten_day_streak", label: "10-day streak", icon: "badge_streak" },
+  { code: "trusted_10", label: "Trusted 10", icon: "badge_trusted" },
 ];
 
 export async function renderProfile(root) {
   const user = (await api.me()) || state.user || {};
   const earned = new Set((user.badges || []).map((b) => b.code));
-
+  const points = user.tier_points ?? 0;
+  const stage = stageFor(points);
+  const next = nextStage(points);
+  const ring = (user.frames || []).filter((f) => f.unlocked).slice(-1)[0]?.ring || "#b9b09a";
 
   root.innerHTML = `
-    ${statusbar()}
-    <div class="appbar"><span></span><h3>Profile</h3><button data-out aria-label="Sign out">⚙</button></div>
+    <div class="appbar">
+      <span></span><h3>Profile</h3>
+      <button data-out aria-label="Sign out" title="Sign out">${ico("signout", { size: 20 })}</button>
+    </div>
     <div class="pad stack">
-      <div class="row">
-        <span class="avatar framed" style="width:58px;height:58px;font-size:20px;overflow:hidden;
-              --frame-ring:${esc((user.frames || []).filter((f) => f.unlocked).slice(-1)[0]?.ring || "rgba(255,255,255,.28)")}">
+      <div class="row" style="gap:var(--s4)">
+        <span class="avatar framed" style="width:64px;height:64px;font-size:24px;--frame-ring:${esc(ring)}">
           ${user.avatar_url
-            ? `<img src="${esc(user.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover">`
+            ? `<img src="${esc(user.avatar_url)}" alt="">`
             : esc((user.name || "?").slice(0, 1).toUpperCase())}
         </span>
         <div class="grow">
-          <h2 style="font-size:22px">${esc(user.name || "You")}</h2>
-          <p class="tiny">${user.username ? "@" + esc(user.username) : ""}${user.city ? " · " + esc(user.city) : ""}</p>
+          <h2 style="font-size:26px">${esc(user.name || "You")}</h2>
+          <p class="tiny">${user.username ? "@" + esc(user.username) : ""}${user.username && user.city ? " · " : ""}${user.city ? esc(user.city) : ""}</p>
         </div>
       </div>
 
-      <div class="row" style="gap:8px">
-        <span class="chip chip-flame">🔥 ${user.current_streak ?? 0} days</span>
-        <span class="chip chip-yellow">★ ${user.tier_points ?? 0}</span>
-        ${tierBadge(user.tier || "Bronze")}
+      <div class="stats-strip">
+        <div><strong>${user.current_streak ?? 0}</strong><span>day streak</span></div>
+        <div><strong>${points}</strong><span>points</span></div>
+        <div><strong>${esc(user.tier || "Bronze")}</strong><span>tier</span></div>
       </div>
 
-      <div class="panel panel-dark" id="tier-slot"></div>
+      <div class="card" id="tier-slot"></div>
 
       <div class="section-title"><h3>Your companion</h3></div>
-      <div class="card companion-card">
-        ${companionSvg(user.tier_points ?? 0, {
-          mood: (user.current_streak ?? 0) > 0 ? "idle" : "sleepy", size: 170,
-        })}
-        <div class="companion-name">${esc(stageFor(user.tier_points ?? 0).name)}</div>
-        <p class="companion-blurb">${esc(stageFor(user.tier_points ?? 0).blurb)}</p>
-        ${nextStage(user.tier_points ?? 0) ? `
-          <div class="bar on-light" style="margin-top:12px">
-            <i style="width:${Math.round(stageProgress(user.tier_points ?? 0) * 100)}%"></i>
+      <div class="card">
+        <div class="companion-card">
+          ${companionSvg(points, { mood: (user.current_streak ?? 0) > 0 ? "idle" : "sleepy", size: 116 })}
+          <div class="companion-body">
+            <div class="companion-name">${esc(stage.name)}</div>
+            <p class="companion-blurb">${esc(stage.blurb)}</p>
+            ${next ? `
+              <div class="bar"><i style="width:${Math.round(stageProgress(points) * 100)}%"></i></div>
+              <p class="companion-next">${next.at - points} pts to ${esc(next.name)}</p>`
+              : `<p class="companion-next">Fully grown.</p>`}
           </div>
-          <p class="companion-next">
-            ${nextStage(user.tier_points ?? 0).at - (user.tier_points ?? 0)} pts to
-            ${esc(nextStage(user.tier_points ?? 0).name)}
-          </p>` : `<p class="companion-next">Fully grown.</p>`}
-
+        </div>
         <div class="stage-track">
           ${STAGES.map((st) => `
-            <div class="stage-dot ${(user.tier_points ?? 0) >= st.at ? "reached" : ""}"
-                 title="${esc(st.name)} at ${st.at} pts">
-              <span>${(user.tier_points ?? 0) >= st.at ? "●" : "○"}</span>
+            <div class="stage-dot ${points >= st.at ? "reached" : ""}" title="${esc(st.name)} at ${st.at} pts">
+              <i></i>
               <em>${esc(st.name)}</em>
             </div>`).join("")}
         </div>
@@ -71,12 +71,12 @@ export async function renderProfile(root) {
 
       <div class="section-title"><h3>Profile frames</h3></div>
       <div class="card">
-        <p class="tiny" style="margin-bottom:12px">Unlocked by total points. Cosmetic only.</p>
+        <p class="tiny" style="margin-bottom:var(--s3)">Unlocked by total points. Purely cosmetic.</p>
         <div class="frame-grid">
           ${(user.frames || []).map((f) => `
             <div class="frame-tile ${f.unlocked ? "unlocked" : "locked"}">
               <span class="frame-ring" style="--frame-ring:${esc(f.ring)}">
-                ${f.unlocked ? "✓" : "🔒"}
+                ${f.unlocked ? ico("check", { size: 18 }) : ico("lock", { size: 16 })}
               </span>
               <em>${esc(f.label)}</em>
               <span class="tiny">${f.at === 0 ? "default" : f.at + " pts"}</span>
@@ -85,46 +85,48 @@ export async function renderProfile(root) {
       </div>
 
       <div class="section-title"><h3>Badges</h3></div>
-      <div>
-        <div class="row" style="gap:10px;flex-wrap:wrap">
-          ${ALL_BADGES.map((b) => `
-            <div class="card" style="flex:1;min-width:88px;text-align:center;padding:12px 8px;opacity:${earned.has(b.code) ? 1 : .35}">
-              <div style="font-size:26px">${b.emoji}</div>
-              <div class="tiny" style="font-weight:800;margin-top:4px">${esc(b.label)}</div>
-            </div>`).join("")}
-        </div>
+      <div class="row" style="gap:10px;flex-wrap:wrap;align-items:stretch">
+        ${ALL_BADGES.map((b) => `
+          <div class="card badge-tile ${earned.has(b.code) ? "" : "locked"}">
+            ${ico(b.icon, { size: 24 })}
+            <span style="font-weight:600;font-size:14px">${esc(b.label)}</span>
+            <span class="tiny">${earned.has(b.code) ? "Earned" : "Not yet"}</span>
+          </div>`).join("")}
       </div>
 
       <div class="section-title"><h3>Your team</h3></div>
       <div class="card">
-        <p class="muted" style="font-size:14px">
-          Everyone on a team shows up on each other's Friends leaderboard.
+        <p class="muted">
+          Everyone on a team shows up on each other's leaderboard.
           One person shares a code, everyone else enters it.
         </p>
 
         <hr class="divider">
 
-        <strong style="font-size:14px">Start a team</strong>
-        <p class="tiny" style="margin:4px 0 10px">Generates a code for others to join with.</p>
+        <h3>Start a team</h3>
+        <p class="tiny" style="margin:4px 0 12px">Makes a code for others to join with.</p>
         <button class="btn btn-ghost" data-invite>Get my invite code</button>
         <div id="invite-out"></div>
 
         <hr class="divider">
 
-        <strong style="font-size:14px">Join a team</strong>
-        <p class="tiny" style="margin:4px 0 10px">Paste the code a teammate sent you.</p>
+        <h3>Join a team</h3>
+        <p class="tiny" style="margin:4px 0 12px">Paste the code a teammate sent you.</p>
         <label class="field">
+          <span class="sr-only">Team code</span>
           <input type="text" id="join-code" placeholder="e.g. 7QK4M2"
                  autocapitalize="characters" autocomplete="off" maxlength="16"
-                 style="text-transform:uppercase;letter-spacing:.14em;font-weight:800;text-align:center">
+                 style="text-transform:uppercase;letter-spacing:.14em;font-weight:600">
         </label>
-        <p class="err" id="join-err" hidden></p>
-        <button class="btn btn-primary" id="join-btn" style="margin-top:10px">Join team</button>
+        <p class="err" id="join-err" hidden style="margin-top:8px"></p>
+        <button class="btn btn-primary" id="join-btn" style="margin-top:12px">Join team</button>
         <div id="join-out"></div>
       </div>
 
-      <button class="btn btn-ghost" data-signout>Sign out</button>
+      <button class="btn btn-ghost" data-signout style="margin-top:var(--s6)">Sign out</button>
     </div>`;
+
+  root.querySelector("#tier-slot").replaceChildren(tierBar(points));
 
   const inviteBtn = root.querySelector("[data-invite]");
   inviteBtn.onclick = async () => {
@@ -132,10 +134,10 @@ export async function renderProfile(root) {
     try {
       const { invite_code } = await api.invite();
       const box = h(`
-        <div class="panel panel-mint" style="margin-top:12px;text-align:center">
-          <div class="tiny">Share this code</div>
-          <div style="font-size:28px;font-weight:800;letter-spacing:.18em;margin:6px 0">${esc(invite_code)}</div>
-          <button class="btn btn-ghost btn-sm" data-copy>Copy code</button>
+        <div style="margin-top:var(--s3);padding:var(--s4);background:var(--brand-tint);border-radius:var(--r-md)">
+          <div class="tiny" style="color:var(--ink-2)">Share this code</div>
+          <div class="figure" style="font-size:34px;letter-spacing:.14em;margin:4px 0 var(--s3)">${esc(invite_code)}</div>
+          <button class="btn btn-ghost btn-sm" data-copy>${ico("copy", { size: 15 })} Copy code</button>
         </div>`);
       box.querySelector("[data-copy]").onclick = async () => {
         try {
@@ -143,7 +145,7 @@ export async function renderProfile(root) {
           toast("Code copied");
         } catch {
           // Clipboard needs a secure context; selecting the text still works.
-          toast("Copy it manually: " + invite_code);
+          toast("Copy it by hand: " + invite_code);
         }
       };
       root.querySelector("#invite-out").replaceChildren(box);
@@ -173,9 +175,10 @@ export async function renderProfile(root) {
     try {
       const group = await api.join(code);
       root.querySelector("#join-out").replaceChildren(
-        h(`<div class="panel panel-mint" style="margin-top:12px;text-align:center">
-             <strong>You're on the team</strong>
-             <p class="tiny" style="margin-top:4px">${group.member_count} member${group.member_count === 1 ? "" : "s"} · check the Friends leaderboard</p>
+        h(`<div class="note note-brand" style="margin-top:var(--s3)">
+             ${ico("check-circle", { size: 18 })}
+             <span><strong>You're on the team.</strong>
+             ${group.member_count} member${group.member_count === 1 ? "" : "s"} so far. Check the leaderboard.</span>
            </div>`));
       joinInput.value = "";
       toast("Joined the team");

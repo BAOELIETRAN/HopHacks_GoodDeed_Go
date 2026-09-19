@@ -716,15 +716,15 @@ def test_completion_credits_poster_and_every_helper_in_the_database(client: Test
     assert after["pia_dual@example.com"] - before["pia_dual@example.com"] == REPORTER_POINTS
 
 
-def test_poster_is_paid_even_when_the_proof_photo_scores_zero(client: TestClient):
-    """The poster's award must not hang on someone else's camera work.
+def test_a_zero_scoring_proof_still_pays_both_people(client: TestClient):
+    """A confirmed task always pays the helper AND the poster.
 
-    They spotted a real problem and wrote it up, and that post passed its own
-    check when it was created. A weak after-photo is the helper's score to
-    lose, not the poster's.
+    The AI can pay a helper more than the floor but not less: the poster has
+    looked at the result and signed off. (This test used to assert the helper
+    got nothing when the proof scored zero; that rule was replaced on purpose.)
     """
     import backend.routers.reports as reports_router
-    from backend.config import REPORTER_POINTS
+    from backend.config import COMPLETION_MIN_POINTS, REPORTER_POINTS
     from backend import db_models as m
 
     poster = signup(client, "Pia", "pia_zero@example.com")
@@ -748,18 +748,28 @@ def test_poster_is_paid_even_when_the_proof_photo_scores_zero(client: TestClient
     finally:
         reports_router.score_submission_from_dict = real
 
-    assert done["points_awarded"] == 0
-    # The zero is explained on the card instead of looking like a failure.
-    assert "street scene" in done["award_rationale"]
+    assert done["points_awarded"] == COMPLETION_MIN_POINTS
+    assert done["reporter_points_awarded"] == REPORTER_POINTS
+    # The card explains the payout in plain words, never with raw model text.
+    assert "Confirmed by the poster" in done["award_rationale"]
+    assert f"+{COMPLETION_MIN_POINTS}" in done["award_rationale"]
+    assert "street scene" not in done["award_rationale"]
 
     db = next(app.dependency_overrides[get_db]())
     try:
         rows = {u.email: u.tier_points for u in db.query(m.User)
                 .filter(m.User.email.in_(["pia_zero@example.com", "hana_zero@example.com"]))}
+        entry = (
+            db.query(m.Submission)
+            .filter(m.Submission.report_id == rid, m.Submission.deed_type == "community_cleanup")
+            .one()
+        )
     finally:
         db.close()
     assert rows["pia_zero@example.com"] == REPORTER_POINTS
-    assert rows["hana_zero@example.com"] == 0
+    assert rows["hana_zero@example.com"] == COMPLETION_MIN_POINTS
+    # The helper's own history keeps the AI's honest read, plus why they were still paid.
+    assert "street scene" in entry.rationale and "still counts" in entry.rationale
 
 
 def test_scoring_outage_does_not_consume_the_report(client: TestClient):

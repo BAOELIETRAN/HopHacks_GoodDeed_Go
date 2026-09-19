@@ -1,7 +1,7 @@
 /* Welcome, sign up and sign in. */
 
 import { api, ApiError, setSession } from "../api.js";
-import { esc, h, statusbar, toast } from "../ui.js";
+import { esc, h, ico, logoMark, stamp, stampDate, toast } from "../ui.js";
 import { go } from "../router.js";
 
 /* --- Google Sign-In -------------------------------------------------------
@@ -63,16 +63,16 @@ async function mountGoogleButton(mount) {
         }
       },
     });
-    const slot = h(`<div style="display:grid;place-items:center"></div>`);
+    const slot = h(`<div style="display:grid;justify-items:start"></div>`);
     mount.replaceChildren(slot);
     window.google.accounts.id.renderButton(slot, {
-      theme: "outline", size: "large", shape: "pill",
+      theme: "outline", size: "large", shape: "rectangular",
       text: "continue_with", width: 300, logo_alignment: "center",
     });
     mount.appendChild(h(`<div class="row" style="margin:14px 0 2px">
-        <hr style="flex:1;border:0;border-top:1px solid var(--glass-border)">
-        <span class="tiny">or</span>
-        <hr style="flex:1;border:0;border-top:1px solid var(--glass-border)">
+        <hr style="flex:1;border:0;border-top:1px solid var(--line)">
+        <span class="tiny">or use email</span>
+        <hr style="flex:1;border:0;border-top:1px solid var(--line)">
       </div>`));
   } catch (err) {
     console.warn("[gdg] Google button failed to render:", err);
@@ -81,45 +81,55 @@ async function mountGoogleButton(mount) {
 
 export function renderWelcome(root) {
   root.innerHTML = `
-    ${statusbar()}
-    <div class="pad stack" style="padding-top:20px">
-      <div class="row center" style="justify-content:center;gap:8px">
-        <span style="font-size:20px">✦</span><h3>GoodDeed Go</h3>
+    <div class="welcome">
+      <div class="wordmark">${logoMark(30)}GoodDeed Go</div>
+
+      <div class="welcome-main">
+        <div>
+          <p class="eyebrow">Volunteering, close to home</p>
+          <h1>Do one good thing near you today.</h1>
+          <p class="welcome-lede">
+            GoodDeed Go finds vetted nonprofits and small neighbourhood jobs within
+            walking distance. Do one, take a photo, and it counts.
+          </p>
+        </div>
+
+        <div id="gbtn"></div>
+        <div class="welcome-actions">
+          <button class="btn btn-primary" data-go="signup">Get started</button>
+          <button class="btn btn-ghost" data-go="login">I already have an account</button>
+        </div>
+        <p class="tiny">Your location is only used to show what's nearby. You stay in control.</p>
       </div>
-      <div class="panel panel-blue" style="height:230px;display:grid;place-items:center;position:relative;overflow:hidden">
-        <div style="position:absolute;top:26px;right:36px;width:54px;height:54px;border-radius:50%;
-                    background:radial-gradient(circle at 34% 30%, #ffe08a, #e8bd5c);
-                    box-shadow:0 0 34px rgba(232,189,92,.55)"></div>
-        <div style="position:absolute;top:36px;left:30px;font-size:20px;opacity:.8">✦</div>
-        <div style="position:absolute;bottom:28px;left:52px;font-size:13px;opacity:.55">✦</div>
-        <div class="mascot"><div class="eyes"><i class="eye"></i><i class="eye"></i></div></div>
+
+      <div class="welcome-aside">
+        <ol class="steps">
+          <li><div><strong>Find something close</strong><span>Nonprofits we've checked, and jobs your neighbours posted.</span></div></li>
+          <li><div><strong>Do it, and show it</strong><span>A quick photo is all the proof it takes.</span></div></li>
+          <li><div><strong>Earn credit</strong><span>Points build your tier, your streak and your team's ranking.</span></div></li>
+        </ol>
+
+        <div class="receipt">
+          <span class="receipt-label">Sample entry</span>
+          <p><strong>Bagged litter along the creek path</strong></p>
+          <p class="tiny">45 minutes · photo checked</p>
+          <div class="receipt-foot">
+            <span class="receipt-pts">+24<small>pts</small></span>
+            ${stamp("Verified", { sub: stampDate(), seed: "welcome", slam: true })}
+          </div>
+        </div>
       </div>
-      <h1>Small deeds.<br>Real-world wins.</h1>
-      <p class="muted">Find trusted local quests, help your neighborhood, and grow your impact streak.</p>
-      <div class="row" style="gap:10px;align-items:stretch">
-        ${[["⌖", "Find", "a nearby need"], ["♥", "Help", "with proof"], ["★", "Grow", "points & trust"]]
-          .map(([i, t, s]) => `
-            <div class="card center" style="flex:1;padding:14px 8px">
-              <div style="font-size:21px;color:var(--green-press)">${i}</div>
-              <div style="font-weight:800;margin-top:5px;font-size:13px">${t}</div>
-              <div class="tiny">${s}</div>
-            </div>`).join("")}
-      </div>
-      <div id="gbtn"></div>
-      <button class="btn btn-primary" data-go="signup">Let's do some good</button>
-      <button class="btn btn-ghost" data-go="login">I already have an account</button>
-      <p class="tiny center">Location is used only to show nearby opportunities. You're always in control.</p>
     </div>`;
 
   root.querySelectorAll("[data-go]").forEach((b) => (b.onclick = () => go(b.dataset.go)));
   mountGoogleButton(root.querySelector("#gbtn"));
 }
 
-function authForm(root, { title, fields, submitLabel, call, altLabel, altRoute }) {
+function authForm(root, { title, lede, fields, submitLabel, call, altLabel, altRoute }) {
   root.innerHTML = `
-    ${statusbar()}
-    <div class="appbar"><button data-back>‹</button><h3>${esc(title)}</h3><span></span></div>
-    <div class="pad stack">
+    <div class="appbar"><button data-back aria-label="Back">${ico("back", { size: 22 })}</button><h3>${esc(title)}</h3><span></span></div>
+    <div class="auth-form stack">
+      <p class="muted">${esc(lede)}</p>
       <div id="gbtn"></div>
       ${fields.map((f) => `
         <label class="field">
@@ -144,13 +154,14 @@ function authForm(root, { title, fields, submitLabel, call, altLabel, altRoute }
 
     const missing = fields.filter((f) => !f.optional && !payload[f.id]);
     if (missing.length) {
-      errEl.textContent = `Please fill in: ${missing.map((f) => f.label.toLowerCase()).join(", ")}`;
+      const names = missing.map((f) => f.label.toLowerCase());
+      errEl.textContent = `Add your ${names.length > 1 ? names.slice(0, -1).join(", ") + " and " + names.at(-1) : names[0]}.`;
       errEl.hidden = false;
       return;
     }
     errEl.hidden = true;
     btn.disabled = true;
-    btn.textContent = "Just a second…";
+    btn.textContent = "One moment…";
     try {
       const res = await call(payload);
       setSession(res.token, res.user);
@@ -158,7 +169,7 @@ function authForm(root, { title, fields, submitLabel, call, altLabel, altRoute }
     } catch (err) {
       const msg = err instanceof ApiError
         ? err.message
-        : "Couldn't reach the server. Is the backend running on port 8000?";
+        : "Couldn't reach the server. Check your connection and try again.";
       errEl.textContent = msg;
       errEl.hidden = false;
       toast(msg, true);
@@ -172,6 +183,7 @@ function authForm(root, { title, fields, submitLabel, call, altLabel, altRoute }
 export function renderSignup(root) {
   authForm(root, {
     title: "Create account",
+    lede: "It takes a minute. Your name is what your team sees on the leaderboard.",
     submitLabel: "Create account",
     altLabel: "I already have an account",
     altRoute: "login",
@@ -189,6 +201,7 @@ export function renderSignup(root) {
 export function renderLogin(root) {
   authForm(root, {
     title: "Sign in",
+    lede: "Welcome back. Pick up where you left off.",
     submitLabel: "Sign in",
     altLabel: "Create an account instead",
     altRoute: "signup",

@@ -245,3 +245,38 @@ class TestMockProviders:
         schema = {"type": "object", "properties": {"summary": {"type": "string"}}}
         result = MockLLMProvider().complete_json(system="s", content=[], schema=schema)
         json.dumps(result)  # must not raise
+
+    # The stub's free text reaches real users (a score, a rejected report, an org
+    # summary), so it must read like an ordinary verdict, not announce itself.
+    _TEXT_SCHEMA = {
+        "type": "object",
+        "properties": {
+            k: {"type": "string"}
+            for k in ("rationale", "reason", "summary", "cause_summary", "organization", "something_new")
+        },
+    }
+
+    @pytest.mark.parametrize("prompt", ["A perfectly ordinary, detailed description of a good deed.", "asdf spam"])
+    def test_llm_mock_text_never_advertises_itself(self, prompt):
+        out = MockLLMProvider().complete_json(
+            system="s", content=[{"type": "text", "text": prompt}], schema=self._TEXT_SCHEMA
+        )
+        for key, text in out.items():
+            assert isinstance(text, str), key
+            assert "[mock]" not in text.lower() and "mockllm" not in text.lower(), (key, text)
+
+    def test_llm_mock_gives_a_readable_verdict_for_each_known_field(self):
+        good = MockLLMProvider().complete_json(
+            system="s",
+            content=[{"type": "text", "text": "A perfectly ordinary, detailed description of a good deed."}],
+            schema=self._TEXT_SCHEMA,
+        )
+        assert good["rationale"].endswith(".") and len(good["rationale"]) > 20
+        assert good["organization"]  # a known field, not the generic fallback
+        assert good["something_new"] == "Checked automatically."  # unknown field -> neutral fallback
+
+        bad = MockLLMProvider().complete_json(
+            system="s", content=[{"type": "text", "text": "lorem ipsum spam"}], schema=self._TEXT_SCHEMA
+        )
+        assert "couldn't" in bad["rationale"].lower()  # a low-signal input reads as a refusal to confirm
+        assert bad["organization"] == ""  # an empty answer is valid and must not be replaced by the fallback

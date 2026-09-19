@@ -3,13 +3,12 @@
 
 import { api, ApiError, getLocation, setSession, state } from "../api.js";
 import {
-  deedIcon, directionsUrl, distanceLabel, esc, h, icon, orgLink, prettyCategory,
-  setupPhotoInput,
-  statusbar, toast,
+  deedIcon, directionsUrl, distanceLabel, esc, h, ico, icon, orgLink, prettyCategory,
+  setupPhotoInput, stamp, stampDate, toast,
 } from "../ui.js";
 import { go } from "../router.js";
 import { celebrate, companionSvg, stageFor } from "../companion.js";
-import { confettiBurst, tierBar } from "../celebrate.js";
+import { tierBar } from "../celebrate.js";
 
 
 /** Straight-line metres between a fix and a quest. Mirrors the server's
@@ -30,36 +29,35 @@ export function renderQuest(root, { quest }) {
   const pts = quest.estimated_points ?? 0;
 
   root.innerHTML = `
-    ${statusbar()}
     <div class="appbar">
-      <button data-back aria-label="Back">‹</button>
+      <button data-back aria-label="Back">${ico("back", { size: 22 })}</button>
       <h3>Quest details</h3>
       <span></span>
     </div>
     <div class="pad stack">
-      <div class="panel panel-yellow" style="height:180px;display:grid;place-items:center;position:relative">
-        <div style="font-size:72px">${icon(quest.category)}</div>
-        <span class="chip chip-dark" style="position:absolute;top:14px;right:14px">★ +${pts}</span>
-      </div>
-
-      <div>
-        ${quest.verified ? `<div class="verified">✓ Verified nonprofit</div>` : `<div class="tiny">Unverified listing</div>`}
-        <h2 style="margin:4px 0">${esc(prettyCategory(quest.category))} volunteering</h2>
-        <p class="muted">${esc(quest.org_name)}</p>
+      <div class="row" style="align-items:flex-start;gap:var(--s4)">
+        <div class="thumb" style="width:64px;height:64px">${icon(quest.category, { size: 30 })}</div>
+        <div class="grow">
+          ${quest.verified
+            ? `<span class="verified">${ico("shield", { size: 15 })} Verified nonprofit</span>`
+            : `<span class="tiny">Unverified listing</span>`}
+          <h2 style="margin-top:4px">${esc(quest.org_name)}</h2>
+          <p class="muted">${esc(prettyCategory(quest.category))} volunteering</p>
+        </div>
       </div>
 
       <div class="meta-row">
-        <span class="chip chip-quiet">⌖ ${distanceLabel(quest.distance_km)}</span>
-        <span class="chip chip-quiet">◷ ${quest.quest_type === "monthly" ? "Monthly" : "Daily"}</span>
-        <span class="chip chip-quiet">${esc(prettyCategory(quest.category))}</span>
+        <span class="chip chip-quiet">${ico("locate", { size: 14 })} ${distanceLabel(quest.distance_km) || "Nearby"}</span>
+        <span class="chip chip-quiet">${ico("clock", { size: 14 })} ${quest.quest_type === "monthly" ? "Monthly" : "Daily"}</span>
+        <span class="chip chip-yellow">Up to +${pts} pts</span>
       </div>
 
       <div class="btn-row" style="gap:10px">
         <a class="btn-directions" data-directions target="_blank" rel="noopener noreferrer">
-          🧭 Directions
+          ${ico("directions", { size: 16 })} Directions
         </a>
         <a class="btn-directions" data-website target="_blank" rel="noopener noreferrer">
-          🔗 ${quest.website ? "Their website" : "Look them up"}
+          ${ico("link", { size: 16 })} ${quest.website ? "Their website" : "Look them up"}
         </a>
       </div>
 
@@ -76,32 +74,22 @@ export function renderQuest(root, { quest }) {
 
       <div class="card">
         <h3>Why you can trust this</h3>
-        <div style="margin-top:10px">
-          <div class="list-row">
-            <span class="grow muted">Legitimacy score</span>
-            <strong>${(quest.legitimacy_score ?? 0).toFixed(2)} / 1.00</strong>
-          </div>
-          <div class="list-row">
-            <span class="grow muted">Listing</span>
-            <strong>${quest.verified ? "Verified nonprofit" : "Unverified"}</strong>
-          </div>
-          <div class="list-row">
-            <span class="grow muted">Estimated reward</span>
-            <strong>+${pts} pts</strong>
-          </div>
+        <div class="facts" style="margin-top:6px">
+          <div><span>Legitimacy score</span><span>${(quest.legitimacy_score ?? 0).toFixed(2)} / 1.00</span></div>
+          <div><span>Listing</span><span>${quest.verified ? "Verified nonprofit" : "Unverified"}</span></div>
+          <div><span>Estimated reward</span><span>+${pts} pts</span></div>
         </div>
       </div>
 
-      <div class="panel panel-blue">
-        <p style="font-size:14px;font-weight:700">
-          🛡️ Check in only when you reach the staffed entrance. Never share private information.
-        </p>
+      <div class="note note-brand">
+        ${ico("shield", { size: 18 })}
+        <span>Only check in once you're at the staffed entrance, and never share private information.</span>
       </div>
 
       <button class="btn btn-primary" data-start disabled>Checking where you are…</button>
-      <p class="tiny center" id="startnote">
-        You can start this quest once you're at the site. The clock then runs
-        automatically — no typing in how long you stayed.
+      <p class="tiny" id="startnote">
+        You can start once you're at the site. The clock then runs on its own,
+        so there's no typing in how long you stayed.
       </p>
     </div>`;
 
@@ -169,16 +157,15 @@ export async function renderSubmit(root, { quest, checkin, deedType } = {}) {
   // A timed check-in is by definition in-person volunteering.
   let spec = types.find((t) => t.key === (measured ? "volunteer" : deedType)) || types[0];
   root.innerHTML = `
-    ${statusbar()}
     <div class="appbar">
-      <button data-back aria-label="Back">‹</button>
+      <button data-back aria-label="Back">${ico("back", { size: 22 })}</button>
       <h3>Add proof</h3>
       <span></span>
     </div>
     <div class="pad stack">
-      <div class="panel panel-dark">
-        <div class="eyebrow" style="color:var(--yellow-deep)">Quest in progress</div>
-        <h3 style="margin-top:4px">${esc(orgName || "Log a good deed")}</h3>
+      <div>
+        <p class="eyebrow">${orgName ? "Your quest" : "New deed"}</p>
+        <h2>${esc(orgName || "Log a good deed")}</h2>
       </div>
 
       ${measured ? "" : `
@@ -191,7 +178,7 @@ export async function renderSubmit(root, { quest, checkin, deedType } = {}) {
             ${types.map((t) => `
               <button type="button" class="deed-tile" data-deed="${esc(t.key)}"
                       aria-selected="${t.key === spec.key}">
-                <span class="deed-ico">${t.icon}</span>
+                <span class="deed-ico">${deedIcon(t.key, { size: 22 })}</span>
                 <span class="deed-label">${esc(t.label)}</span>
                 <span class="deed-blurb">${esc(t.blurb)}</span>
               </button>`).join("")}
@@ -201,9 +188,7 @@ export async function renderSubmit(root, { quest, checkin, deedType } = {}) {
 
       <div id="deed-fields"></div>
 
-      <p class="tiny center" style="margin-top:var(--s2)">
-        AI checks the task and the evidence — not your identity.
-      </p>
+      <p class="tiny">AI checks the task and the evidence, not who you are.</p>
 
       <p class="err" id="formerr" hidden></p>
       <button class="btn btn-primary" id="send">Submit deed</button>
@@ -231,8 +216,8 @@ export async function renderSubmit(root, { quest, checkin, deedType } = {}) {
         <label class="dropzone" id="dropzone">
           <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" id="photo">
           <div class="guide" id="guide">
-            <span class="guide-icon">${spec.icon}</span>
-            ${needsPhoto ? "Add a photo" : "Add a photo — optional for this one"}
+            <span class="guide-icon">${deedIcon(spec.key, { size: 30 })}</span>
+            ${needsPhoto ? "Add a photo" : "Add a photo (optional for this one)"}
             <span class="guide-hint">JPEG or PNG</span>
           </div>
         </label>
@@ -254,8 +239,8 @@ export async function renderSubmit(root, { quest, checkin, deedType } = {}) {
       ${measured ? `
         <div class="form-section">
           <div class="verified-time">
-            <strong>✓ ${measured.elapsed_minutes} ${measured.elapsed_minutes === 1 ? "minute" : "minutes"}, timed</strong>
-            <span>Measured on site — nothing to type in.</span>
+            <strong>${ico("check", { size: 16 })} ${measured.elapsed_minutes} ${measured.elapsed_minutes === 1 ? "minute" : "minutes"}, timed</strong>
+            <span>Measured on site, so there's nothing to type in.</span>
             <button type="button" class="btn-link" data-adjust-time>That's not right</button>
             <div data-adjust-box hidden>
               <label class="field-label" for="mins" style="margin-top:10px">
@@ -268,7 +253,6 @@ export async function renderSubmit(root, { quest, checkin, deedType } = {}) {
               </p>
             </div>
           </div>
-          ${measured.elapsed_minutes > 0 ? "" : ""}
         </div>`
         : needsTime ? `
         <div class="form-section">
@@ -276,7 +260,7 @@ export async function renderSubmit(root, { quest, checkin, deedType } = {}) {
             <strong>Not timed</strong>
             <span>
               This one scores on the deed itself. Next time, open the quest and
-              tap “I'm here” — the app times it for you and it's worth more.
+              tap “I'm here”. The app times it for you, and it's worth more.
             </span>
           </div>
         </div>`
@@ -317,7 +301,7 @@ export async function renderSubmit(root, { quest, checkin, deedType } = {}) {
     chosenEl.hidden = false;
     chosenEl.innerHTML = `
       <div class="chosen-row">
-        <span class="chosen-ico">${spec.icon}</span>
+        <span class="chosen-ico">${deedIcon(spec.key, { size: 22 })}</span>
         <span class="grow">
           <strong>${esc(spec.label)}</strong>
           <em>up to ${spec.max_points} pts</em>
@@ -402,51 +386,66 @@ export async function renderSubmit(root, { quest, checkin, deedType } = {}) {
 
 /** Result screen. Handles both the awarded and the rejected case -- a
  *  zero-point result is a normal outcome, not an error, and the rationale is
- *  the most useful thing on the screen when it happens. */
+ *  the most useful thing on the screen when it happens.
+ *
+ *  The payoff is the ink stamp thumping down on the entry, not confetti. */
 export function renderResult(root, { result }) {
   if (!result) return go("map");
   const awarded = (result.points ?? 0) > 0;
   const confidence = Math.round((result.authenticity_confidence ?? 0) * 100);
 
   root.innerHTML = `
-    ${statusbar()}
-    <div class="pad stack center" style="padding-top:28px">
-      <div id="result-companion">
-        ${companionSvg(result.user_tier_points ?? 0, {
-          mood: awarded ? "happy" : "sleepy", size: 150,
-        })}
+    <div class="pad stack" style="padding-top:var(--s7)">
+      <div>
+        <p class="eyebrow">Review complete</p>
+        <h1>${awarded ? "That one counts." : "We couldn't verify this one."}</h1>
       </div>
-      <div class="eyebrow">AI review complete</div>
-      <h1>${awarded ? "Good deed verified!" : "We couldn't verify this"}</h1>
-      <p class="muted">${esc(result.rationale || "")}</p>
 
-      <div class="card" style="text-align:left">
-        <div class="center" style="font-size:44px;font-weight:800;color:${awarded ? "var(--green-press)" : "var(--ink-faint)"}">
-          ${awarded ? "+" : ""}${result.points ?? 0} points
+      <div class="card" style="padding:var(--s5)">
+        <div class="row-between" style="align-items:flex-start">
+          <div>
+            <div class="figure" style="font-size:60px;line-height:1;color:${awarded ? "var(--brand-ink)" : "var(--ink-3)"}">
+              ${awarded ? "+" : ""}${result.points ?? 0}
+            </div>
+            <div class="tiny" style="margin-top:4px">points</div>
+          </div>
+          ${stamp(awarded ? "Verified" : "Not verified", {
+            sub: stampDate(result.submitted_at), tone: awarded ? "ok" : "no",
+            seed: `${result.submission_id ?? ""}${result.rationale ?? ""}`, slam: true,
+          })}
         </div>
-        <div class="scorelines" style="margin-top:10px">
-          <div><span>Kind of deed</span><span>${deedIcon(result.deed_type)} ${esc(prettyCategory(result.deed_type))}</span></div>
+        <p class="muted" style="margin-top:var(--s4)">${esc(result.rationale || "")}</p>
+        <hr class="divider">
+        <div class="scorelines">
+          <div><span>Kind of deed</span><span>${esc(prettyCategory(result.deed_type))}</span></div>
           <div><span>Toward your tier</span><span>+${result.tier_points ?? 0}</span></div>
           <div><span>Authenticity confidence</span><span>${confidence}%</span></div>
           <div>
             <span>Time logged</span>
-            <span>${result.time_spent_minutes ?? 0} min${result.verified_presence ? " ✓ verified" : ""}</span>
+            <span>${result.time_spent_minutes ?? 0} min${result.verified_presence ? " \u00b7 timed on site" : ""}</span>
           </div>
         </div>
       </div>
 
       ${result.is_personal_best
-        ? `<div class="panel panel-yellow row-between"><span>🔥 ${result.current_streak}-day streak!</span><span class="chip chip-yellow">Personal best</span></div>`
+        ? `<div class="note note-brand">${ico("flame", { size: 18 })}<span class="grow"><strong>${result.current_streak}-day streak.</strong> That's your longest yet.</span></div>`
         : result.current_streak
-          ? `<div class="panel panel-yellow">🔥 ${result.current_streak}-day streak</div>`
+          ? `<div class="note note-brand">${ico("flame", { size: 18 })}<span>${result.current_streak}-day streak. Keep it going tomorrow.</span></div>`
           : ""}
 
-      <div class="card" style="text-align:left" id="tier-slot"></div>
+      <div class="card companion-card">
+        <div id="result-companion">
+          ${companionSvg(result.user_tier_points ?? 0, {
+            mood: awarded ? "happy" : "sleepy", size: 104,
+          })}
+        </div>
+        <div class="companion-body" id="tier-slot"></div>
+      </div>
 
-      ${awarded ? "" : `<p class="tiny">Nothing was deducted. Retake the photo at the site and submit again.</p>`}
+      ${awarded ? "" : `<p class="tiny">Nothing was deducted. If the photo didn't show the work, retake it and submit again.</p>`}
 
-      <button class="btn btn-primary" data-again>${awarded ? "Back to map" : "Try again"}</button>
-      <button class="btn btn-ghost" data-map>Back to map</button>
+      <button class="btn btn-primary" data-again>${awarded ? "Back to Today" : "Try again"}</button>
+      <button class="btn btn-ghost" data-map>${awarded ? "See the map" : "Back to map"}</button>
     </div>`;
 
   // XP bar animates up from the pre-submission total, so the points just
@@ -461,7 +460,6 @@ export function renderResult(root, { result }) {
     const beforeStage = stageFor(after - earned).key;
     const evolved = beforeStage !== stageFor(after).key;
     celebrate(root.querySelector("#result-companion .companion"), { evolved });
-    confettiBurst({ count: evolved ? 130 : 90 });
   }
 
   root.querySelector("[data-again]").onclick = () => go(awarded ? "today" : "submit", {});

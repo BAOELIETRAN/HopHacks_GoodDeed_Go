@@ -238,7 +238,7 @@ file. `.env` is gitignored — never commit it.
 The two keys are independent: real Places with a mocked LLM works fine.
 `GET /health` or the `python -m gooddeed_agent` header tells you which mode
 each provider is in — check there first when output looks like stub text
-(the mocks label themselves `[mock]`).
+(with no key the stubs answer as ordinary verdicts; `/health` and the demo-scoring banner tell you it is mocked).
 
 ## Design notes
 

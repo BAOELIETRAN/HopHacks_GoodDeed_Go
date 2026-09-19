@@ -63,6 +63,13 @@ CLAIM_EXPIRY_HOURS = 3
 # less than going out and fixing it.
 REPORTER_POINTS = 5
 
+# The least a helper earns once the poster confirms the work is done. The AI
+# still scores the proof and can pay more, but a confirmed cleanup is never
+# worth nothing: the poster, a person, has looked at the result and signed off,
+# and "I did the work and got zero" is the outcome that makes people stop
+# helping. Kept small (2x the poster's award) so it is a floor, not a farm.
+COMPLETION_MIN_POINTS = 10
+
 # --- Presence-verified check-ins ----------------------------------------
 # You must actually be at an organization to start a quest there, and the
 # clock is kept by the server from location heartbeats rather than typed in

@@ -17,32 +17,32 @@ const STAGES = [
   {
     key: "egg", name: "Egg", at: 0,
     blurb: "Something's in there. Do some good and find out.",
-    body: "#8fd9a8", accent: "#5ccb7d",
+    body: "#a9d9b6", accent: "#5bb578",
   },
   {
     key: "sprout", name: "Sprout", at: 25,
     blurb: "It hatched. It seems pleased about it.",
-    body: "#7ed393", accent: "#43b168",
+    body: "#8fd0a1", accent: "#3f9f5f",
   },
   {
     key: "seedling", name: "Seedling", at: 100,
     blurb: "Growing fast. It's started following you around.",
-    body: "#6bcd8c", accent: "#2f9c56",
+    body: "#79c893", accent: "#2f8a4f",
   },
   {
     key: "bloom", name: "Bloom", at: 250,
     blurb: "It flowered. That only happens when someone's been busy.",
-    body: "#5fc98a", accent: "#e8bd5c",
+    body: "#6dc28b", accent: "#d9a531",
   },
   {
     key: "guardian", name: "Guardian", at: 500,
     blurb: "Fully grown, and quietly proud of you.",
-    body: "#4fc088", accent: "#ffd98a",
+    body: "#5cba86", accent: "#e0a92a",
   },
   {
     key: "radiant", name: "Radiant", at: 1000,
     blurb: "Rare. Most people never see one of these.",
-    body: "#46bd93", accent: "#ffe9a8",
+    body: "#52b78f", accent: "#e6b53a",
   },
 ];
 
@@ -97,11 +97,6 @@ export function companionSvg(points, { mood = "idle", size = 150 } = {}) {
      width="${size}" height="${size}" role="img"
      aria-label="${stage.name}, your companion">
   <defs>
-    <radialGradient id="cmpBody-${stage.key}" cx="38%" cy="30%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity=".55"/>
-      <stop offset="55%" stop-color="${stage.body}"/>
-      <stop offset="100%" stop-color="${stage.accent}"/>
-    </radialGradient>
     <filter id="cmpGlow"><feGaussianBlur stdDeviation="6" result="b"/>
       <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
   </defs>
@@ -110,7 +105,7 @@ export function companionSvg(points, { mood = "idle", size = 150 } = {}) {
       fill="${stage.accent}" opacity=".22" filter="url(#cmpGlow)"/>` : ""}
 
   <ellipse class="cmp-shadow" cx="100" cy="176" rx="46" ry="9"
-           fill="#04120f" opacity=".28"/>
+           fill="#1b2a22" opacity=".22"/>
 
   <g class="cmp-bob">
     ${hasCrown ? `<g class="cmp-crown">
@@ -134,12 +129,12 @@ export function companionSvg(points, { mood = "idle", size = 150 } = {}) {
 
     <g class="cmp-body">
       ${isEgg
-        ? `<ellipse cx="100" cy="112" rx="52" ry="62" fill="url(#cmpBody-egg)"/>
+        ? `<ellipse cx="100" cy="112" rx="52" ry="62" fill="${stage.body}"/>
            <path class="cmp-crack" d="M74 96 l14 12 l-9 11 l16 13"
                  stroke="#2f7d55" stroke-width="3" fill="none"
                  stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>`
         : `<ellipse cx="100" cy="116" rx="56" ry="52"
-                    fill="url(#cmpBody-${stage.key})"/>
+                    fill="${stage.body}"/>
            <ellipse cx="78" cy="98" rx="17" ry="13" fill="#fff" opacity=".22"/>`}
     </g>
 

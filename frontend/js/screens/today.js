@@ -11,7 +11,7 @@
  */
 
 import { api, ApiError, setSession, state } from "../api.js";
-import { confirmDelete, esc, h, spinner, statusbar, toast } from "../ui.js";
+import { emptyState, esc, h, ico, microIcon, skeleton, toast } from "../ui.js";
 import { go } from "../router.js";
 import { quoteOfTheDay } from "../quotes.js";
 import { activeSessionBanner } from "../ui.js";
@@ -19,23 +19,22 @@ import { celebrate, companionSvg, nextStage, stageFor, stageProgress } from "../
 
 export async function renderToday(root) {
   root.innerHTML = `
-    ${statusbar()}
-    <div class="hero" style="display:block">
-      <div class="eyebrow">Today</div>
-      <h2>Small things count</h2>
-      <p class="muted" style="margin-top:4px">
-        Quick, everyday good. No photo, no check-in — just do it and tap.
-      </p>
+    <div class="page-head">
+      <div>
+        <p class="eyebrow">Today</p>
+        <h2>Small things count</h2>
+        <p class="muted">Quick, everyday good. No photo and no check-in: do it, then tap.</p>
+      </div>
     </div>
-    <div class="pad" style="padding-top:0" id="companion-slot"></div>
+    <div class="pad" id="companion-slot"></div>
     <div id="session-slot"></div>
-    ${quoteCard()}
-    <div class="pad" id="tasks" style="padding-top:0">${spinner()}</div>
+    <div class="pad" style="padding-top:0;padding-bottom:0">${quoteCard()}</div>
+    <div class="pad" id="tasks" style="padding-top:var(--s6)">${skeleton(3)}</div>
     <div class="pad" style="padding-top:0">
-      <div class="section-title"><h3>Something bigger?</h3></div>
+      <div class="section-title" style="margin-top:0"><h3>Something bigger?</h3></div>
       <button class="btn btn-ghost" id="log-deed">Log a donation, fundraiser or other deed</button>
-      <p class="tiny center" style="margin-top:8px">
-        Donations, goods, fundraising, remote help, blood, advocacy.
+      <p class="tiny" style="margin-top:10px">
+        Money, goods, fundraising, remote help, blood, advocacy.
       </p>
     </div>`;
 
@@ -52,17 +51,17 @@ export async function renderToday(root) {
     const mood = (state.user?.current_streak ?? 0) > 0 ? "idle" : "sleepy";
     companionSlot.innerHTML = `
       <div class="card companion-card">
-        ${companionSvg(points, { mood, size: 168 })}
-        <div class="companion-name">${stage.name}
-          <span class="chip chip-quiet" style="font-size:11px">${points} pts</span>
-        </div>
-        <p class="companion-blurb">${esc(stage.blurb)}</p>
-        ${next ? `
-          <div class="bar on-light" style="margin-top:12px">
-            <i style="width:${Math.round(stageProgress(points) * 100)}%"></i>
+        ${companionSvg(points, { mood, size: 116 })}
+        <div class="companion-body">
+          <div class="companion-name">${esc(stage.name)}
+            <span class="chip chip-quiet">${points} pts</span>
           </div>
-          <p class="companion-next">${next.at - points} pts to ${next.name}</p>`
-          : `<p class="companion-next">Fully grown. Nothing left to prove.</p>`}
+          <p class="companion-blurb">${esc(stage.blurb)}</p>
+          ${next ? `
+            <div class="bar"><i style="width:${Math.round(stageProgress(points) * 100)}%"></i></div>
+            <p class="companion-next">${next.at - points} pts to ${esc(next.name)}</p>`
+            : `<p class="companion-next">Fully grown. Nothing left to prove.</p>`}
+        </div>
       </div>`;
   };
   paintCompanion();
@@ -75,16 +74,25 @@ export async function renderToday(root) {
     const data = await api.todaysTasks();
     const pct = Math.min(100, Math.round((data.points_today / data.daily_cap) * 100));
 
-    list.replaceChildren(
-      h(`<div class="panel panel-dark" style="margin-bottom:var(--s3)">
-           <div class="row-between">
-             <strong style="font-size:14px">Today's small good</strong>
-             <span class="tiny">${data.points_today} / ${data.daily_cap} pts</span>
-           </div>
-           <div class="bar" style="margin-top:10px"><i style="width:${pct}%"></i></div>
-         </div>`),
-      ...data.deeds.map((d) => taskCard(d, data, load, { paintCompanion, companionSlot })),
-    );
+    const head = h(`
+      <div>
+        <div class="section-title" style="margin-top:0">
+          <h3>Today's small good</h3>
+          <span class="tiny">${data.points_today} of ${data.daily_cap} pts</span>
+        </div>
+        <div class="bar" style="margin-bottom:var(--s4)"><i style="width:${pct}%"></i></div>
+      </div>`);
+
+    if (!data.deeds.length) {
+      list.replaceChildren(head, emptyState({
+        icon: "sprout", title: "Nothing on the list right now",
+        body: "New everyday ideas show up each morning. Check back tomorrow.",
+      }));
+      return;
+    }
+    const rows = h(`<div class="card task-list"></div>`);
+    rows.append(...data.deeds.map((d) => taskCard(d, data, load, { paintCompanion, companionSlot })));
+    list.replaceChildren(head, rows);
   };
 
   await load();
@@ -92,20 +100,18 @@ export async function renderToday(root) {
 
 function taskCard(deed, data, reload, companion) {
   const card = h(`
-    <div class="card ${deed.done ? "task-done" : "tappable"}">
-      <div class="row">
-        <div class="thumb" style="width:48px;height:48px;font-size:22px">${deed.icon}</div>
-        <div class="grow">
-          <p style="font-weight:700;font-size:14.5px;line-height:1.35">${esc(deed.text)}</p>
-          <p class="tiny" style="margin-top:3px">+${deed.points} pts</p>
-        </div>
-        ${deed.done
-          ? `<span class="row" style="gap:6px">
-               <button class="delete-btn" data-undo>Undo</button>
-               <span class="status-pill status-open">✓ Done</span>
-             </span>`
-          : `<button class="btn btn-primary btn-sm" data-do>I did it</button>`}
+    <div class="task-row ${deed.done ? "task-done" : ""}">
+      <div class="thumb">${deed.done ? ico("check", { size: 22 }) : microIcon(deed.id, { size: 22 })}</div>
+      <div class="grow">
+        <p class="task-text">${esc(deed.text)}</p>
+        <p class="tiny">+${deed.points} pts</p>
       </div>
+      ${deed.done
+        ? `<span class="row" style="gap:4px">
+             <button class="delete-btn" data-undo>Undo</button>
+             <span class="task-done-mark">${ico("check", { size: 16 })} Done</span>
+           </span>`
+        : `<button class="btn btn-primary btn-sm" data-do>I did it</button>`}
     </div>`);
 
   const undo = card.querySelector("[data-undo]");
@@ -126,7 +132,7 @@ function taskCard(deed, data, reload, companion) {
   if (btn) {
     btn.onclick = async () => {
       btn.disabled = true;
-      btn.textContent = "…";
+      btn.textContent = "Saving…";
       try {
         const res = await api.completeTask(deed.id);
         // Keep the header's tier and streak in step without a reload.
@@ -148,7 +154,7 @@ function taskCard(deed, data, reload, companion) {
 
         toast(
           evolved
-            ? `${stageFor(res.user_tier_points).name}! Your companion evolved.`
+            ? `Your companion just grew into a ${stageFor(res.user_tier_points).name}.`
             : res.capped
               ? `Logged. You've hit today's ${res.daily_cap}-point cap — it still counts.`
               : `Nice one. +${res.points} pts`,
@@ -167,10 +173,8 @@ function taskCard(deed, data, reload, companion) {
 function quoteCard() {
   const q = quoteOfTheDay();
   return `
-    <div class="pad" style="padding-top:0;padding-bottom:var(--s4)">
-      <blockquote class="quote-card">
-        <p>${esc(q.text)}</p>
-        <cite>${esc(q.who)}${q.src ? `, <span>${esc(q.src)}</span>` : ""}</cite>
-      </blockquote>
-    </div>`;
+    <blockquote class="quote-card">
+      <p>${esc(q.text)}</p>
+      <cite>${esc(q.who)}${q.src ? `, <span>${esc(q.src)}</span>` : ""}</cite>
+    </blockquote>`;
 }

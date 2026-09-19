@@ -12,7 +12,7 @@
 */
 
 import { api, ApiError, getLocation } from "../api.js";
-import { esc, h, icon, statusbar, toast } from "../ui.js";
+import { esc, h, ico, icon, toast } from "../ui.js";
 import { go } from "../router.js";
 
 const HEARTBEAT_MS = 30_000;
@@ -95,19 +95,17 @@ export async function renderActive(root, { checkin: passed } = {}) {
   cacheSession(session);
 
   root.innerHTML = `
-    ${statusbar()}
     <div class="appbar"><span></span><h3>Quest in progress</h3><span></span></div>
     <div class="pad stack">
-      <div class="panel panel-dark center" style="padding:var(--s6) var(--s4)">
-        <div class="eyebrow" style="color:var(--green)">Timing your shift</div>
-        <div id="clock" style="font-size:56px;font-weight:800;letter-spacing:-2px;margin:6px 0;
-                               font-variant-numeric:tabular-nums">0:00</div>
-        <div class="tiny" id="clocknote">The clock is kept by the server, not this phone.</div>
+      <div class="clock-face">
+        <p class="eyebrow">Timing your shift</p>
+        <div class="clock" id="clock">0:00</div>
+        <p class="tiny" id="clocknote">The clock is kept by the server, not this phone.</p>
       </div>
 
       <div class="card">
         <div class="row">
-          <div class="thumb">${icon(session.category)}</div>
+          <div class="thumb">${icon(session.category, { size: 24 })}</div>
           <div class="grow">
             <h3 class="truncate">${esc(session.org_name)}</h3>
             <p class="tiny">${session.quest_type === "monthly" ? "Monthly" : "Daily"} quest ·
@@ -116,22 +114,23 @@ export async function renderActive(root, { checkin: passed } = {}) {
         </div>
       </div>
 
-      <div class="panel panel-mint" id="presence">
-        <div class="row-between">
-          <strong style="font-size:14px">You're at the site</strong>
-          <span class="chip chip-quiet" id="dist">—</span>
+      <div class="note note-brand" id="presence">
+        ${ico("locate", { size: 18 })}
+        <div class="grow">
+          <div class="row-between">
+            <strong>You're at the site</strong>
+            <span class="chip" id="dist">…</span>
+          </div>
+          <p class="tiny" style="margin-top:6px;color:var(--ink-2)">
+            Stay within ${session.leave_radius_m}m. If you walk further the timer stops
+            by itself, and you keep the minutes you were actually there.
+          </p>
         </div>
-        <p class="tiny" style="margin-top:6px">
-          Stay within ${session.leave_radius_m}m. Walk further and the timer stops
-          automatically — you keep the minutes you were actually there.
-        </p>
       </div>
 
-      <button class="btn btn-primary" id="finish">Finish &amp; add proof</button>
+      <button class="btn btn-primary" id="finish">Finish and add proof</button>
       <button class="btn btn-ghost" id="cancel">Cancel this quest</button>
-      <p class="tiny center">
-        Verified sessions are worth more than typed-in time.
-      </p>
+      <p class="tiny">Timed sessions are worth more than typed-in time.</p>
     </div>`;
 
   const clockEl = root.querySelector("#clock");
@@ -177,9 +176,9 @@ export async function renderActive(root, { checkin: passed } = {}) {
 
     // Warn before the server acts, so leaving is never a silent loss.
     const nearLimit = away > session.leave_radius_m * 0.7;
-    presenceEl.className = `panel ${nearLimit ? "panel-coral" : "panel-mint"}`;
+    presenceEl.className = `note ${nearLimit ? "note-alert" : "note-brand"}`;
     presenceEl.querySelector("strong").textContent =
-      nearLimit ? "Head back — you're drifting" : "You're at the site";
+      nearLimit ? "Head back, you're drifting" : "You're at the site";
 
     try {
       const updated = await api.heartbeat(session.checkin_id, loc.lat, loc.lng);

@@ -104,7 +104,9 @@ test.describe("take a photo with the camera", () => {
 
     await p.page.locator("#desc").fill(DESCRIPTION);
     await p.page.locator("#send").click();
-    await expect(p.page.getByRole("heading", { name: "Community" }).first()).toBeVisible();
+    // Navigation to the feed is the signal that the post went through. (A heading match is
+    // too loose: the form itself has one containing the word "community".)
+    await expect(p.page).toHaveURL(/#community$/);
 
     const res = await request.get("/reports", {
       headers: p.headers,

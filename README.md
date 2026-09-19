@@ -110,6 +110,12 @@ first, because raw phone photos are 3–6MB before base64 adds a third.
 **Claims expire after 3 hours** if the claimant never submits proof, so an
 abandoned claim can't lock a need forever. Submitting proof stops the clock.
 
+**Confirming a task pays both people.** Each helper earns the AI's score for the
+proof, never less than `COMPLETION_MIN_POINTS` (10); the poster earns
+`REPORTER_POINTS` (5) for reporting it. Both are recorded as scored entries, so
+they show on the leaderboard, the activity feed and each person's history. See
+`backend/config.py`; deleting a confirmed post takes back only the poster's credit.
+
 ---
 
 ## Keys

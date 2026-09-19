@@ -10,7 +10,7 @@
  */
 
 import { api } from "./api.js";
-import { deedIcon, esc, h, prettyCategory } from "./ui.js";
+import { deedIcon, esc, h, ico, prettyCategory } from "./ui.js";
 
 const KEY = "gdg_recap_seen_week";
 
@@ -69,10 +69,10 @@ export function showRecap(data) {
 
           ${data.top_deed_type ? `
             <p class="recap-line">
-              ${deedIcon(data.top_deed_type)} Mostly ${esc(prettyCategory(data.top_deed_type)).toLowerCase()}
+              ${deedIcon(data.top_deed_type, { size: 16 })} Mostly ${esc(prettyCategory(data.top_deed_type)).toLowerCase()}
             </p>` : ""}
           ${data.friend_rank && data.friend_count > 1 ? `
-            <p class="recap-line">🏅 ${data.friend_rank} of ${data.friend_count} in your team</p>` : ""}
+            <p class="recap-line">${ico("trophy", { size: 16 })} ${data.friend_rank} of ${data.friend_count} on your team</p>` : ""}
         `}
 
         <div class="recap-tier">

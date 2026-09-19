@@ -147,6 +147,11 @@ class Submission(Base):
     # type is judged by its own rubric and has its own point scale.
     deed_type: Mapped[str] = mapped_column(String(32), default="volunteer", index=True)
 
+    # The community report this credit came from, for both the helpers who did
+    # the work and the poster who reported it. Lets deleting a post take back
+    # exactly the poster's entry and leave the helpers' alone.
+    report_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+
 
 class CheckIn(Base):
     """A presence-verified volunteering session.
@@ -413,6 +418,10 @@ class Report(Base):
     proof_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     proof_time_spent_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # What each helper earned when the poster confirmed it.
     points_awarded: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # Why that number. A zero with no explanation reads as a bug.
+    # What the poster earned for reporting it. Stored rather than derived from
+    # config, so changing the award later doesn't rewrite what people were paid.
+    reporter_points: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # A plain-language note about the payout, shown on the finished card.
     award_rationale: Mapped[str | None] = mapped_column(String(600), nullable=True)

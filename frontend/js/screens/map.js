@@ -3,54 +3,40 @@
 import { api, getLocation, state } from "../api.js";
 import { radiusKm } from "../config.js";
 import {
-  directionsUrl, distanceLabel, esc, h, icon, statusbar, toast,
+  directionsUrl, distanceLabel, emptyState, esc, h, ico, icon, skeleton, toast,
 } from "../ui.js";
 import { go } from "../router.js";
-import { quoteOfTheDay } from "../quotes.js";
 
 let mapInstance = null;
-
-/** The day's quote. Same for everyone, rolls over at midnight, no API. */
-function quoteCard() {
-  const q = quoteOfTheDay();
-  return `
-    <div class="pad" style="padding-top:0;padding-bottom:12px">
-      <blockquote class="quote-card">
-        <p>${esc(q.text)}</p>
-        <cite>${esc(q.who)}${q.src ? `, <span>${esc(q.src)}</span>` : ""}</cite>
-      </blockquote>
-    </div>`;
-}
 
 export async function renderMap(root) {
   const user = state.user || {};
   root.innerHTML = `
-    ${statusbar()}
-    <div class="hero">
+    <div class="page-head">
       <div>
-        <div class="eyebrow">Nearby good deeds</div>
-        <h2>Ready${user.name ? ", " + esc(user.name.split(" ")[0]) : ""}?</h2>
+        <p class="eyebrow">Nearby</p>
+        <h2>${user.name ? `Ready, ${esc(user.name.split(" ")[0])}?` : "What's around you"}</h2>
       </div>
-      <div class="stats">
-        <span class="chip chip-flame">🔥 ${user.current_streak ?? 0}</span>
-        <span class="chip chip-yellow">★ ${user.tier_points ?? 0}</span>
+      <div class="head-actions">
+        <span class="chip chip-flame" title="Day streak">${ico("flame", { size: 15 })} ${user.current_streak ?? 0}</span>
+        <span class="chip chip-yellow" title="Tier points">${user.tier_points ?? 0} pts</span>
       </div>
     </div>
-    ${quoteCard()}
-    <div id="map"></div>
+    <div style="height:var(--s3)"></div>
+    <div id="map" role="application" aria-label="Map of nearby quests and community jobs"></div>
     <div class="map-legend">
-      <span><span class="legend-dot" style="background:var(--green)"></span>Verified nonprofit</span>
-      <span><span class="legend-dot" style="background:var(--coral)"></span>Community need</span>
+      <span><span class="legend-dot" style="background:var(--brand)"></span>Vetted nonprofit</span>
+      <span><span class="legend-dot" style="background:var(--alert)"></span>Neighbour's job</span>
     </div>
-    <div class="pad" id="map-highlight" style="padding-top:12px"></div>
+    <div class="pad" id="map-highlight">${skeleton(1)}</div>
     <div class="pad" style="padding-top:0">
-      <button class="btn btn-ghost" id="all-quests">See all nearby quests</button>
+      <button class="btn btn-ghost" id="all-quests">See all nearby quests ${ico("arrow", { size: 18 })}</button>
     </div>`;
 
   root.querySelector("#all-quests").onclick = () => go("quests");
 
   const loc = await getLocation();
-  if (loc.approximate) toast("Using a default location — allow location for real results");
+  if (loc.approximate) toast("Showing a default location. Allow location access to see what's really near you.");
 
   // Leaflet needs a laid-out container, so build the map after paint.
   requestAnimationFrame(() => initLeaflet(loc));
@@ -85,7 +71,7 @@ function initLeaflet(loc) {
   }).addTo(mapInstance);
 
   L.circleMarker([loc.lat, loc.lng], {
-    radius: 9, color: "#fff", weight: 3, fillColor: "#8b7ff0", fillOpacity: 1,
+    radius: 8, color: "#fdfbf5", weight: 3, fillColor: "#1b2a22", fillOpacity: 1,
   }).addTo(mapInstance);
 }
 
@@ -93,7 +79,7 @@ function drawPins(quests, reports) {
   if (!mapInstance || !window.L) return;
 
   for (const q of quests.slice(0, 12)) {
-    const label = `${icon(q.category)} ${esc(q.org_name.split(/[-–|]/)[0].trim())} · +${q.estimated_points ?? ""}`;
+    const label = `${icon(q.category, { size: 15 })}<span>${esc(q.org_name.split(/[-–|]/)[0].trim())} · +${q.estimated_points ?? ""}</span>`;
     const marker = L.marker([q.lat, q.lng], {
       icon: L.divIcon({ className: "", html: `<div class="map-pin">${label}</div>`, iconSize: null }),
     }).addTo(mapInstance);
@@ -106,7 +92,7 @@ function drawPins(quests, reports) {
          <strong>${esc(q.org_name)}</strong>
          <div class="tiny">${esc(q.address || "")}</div>
          <div class="map-pop-actions">
-           <a href="${directionsUrl(q.lat, q.lng)}" target="_blank" rel="noopener noreferrer">🧭 Directions</a>
+           <a href="${directionsUrl(q.lat, q.lng)}" target="_blank" rel="noopener noreferrer">${ico("directions", { size: 15 })} Directions</a>
            <button data-quest>View quest</button>
          </div>
        </div>`,
@@ -123,7 +109,7 @@ function drawPins(quests, reports) {
     const marker = L.marker([r.lat, r.lng], {
       icon: L.divIcon({
         className: "",
-        html: `<div class="map-pin report">❤ ${text} · +${r.estimated_points ?? 20}</div>`,
+        html: `<div class="map-pin report">${ico("pin", { size: 15 })}<span>${text} · +${r.estimated_points ?? 20}</span></div>`,
         iconSize: null,
       }),
     }).addTo(mapInstance);
@@ -132,8 +118,8 @@ function drawPins(quests, reports) {
          <strong>${esc(r.description || "Community need")}</strong>
          <div class="tiny">Posted by ${esc(r.reported_by_name || "a neighbour")}</div>
          <div class="map-pop-actions">
-           <a href="${directionsUrl(r.lat, r.lng)}" target="_blank" rel="noopener noreferrer">🧭 Directions</a>
-           <button data-feed>Open feed</button>
+           <a href="${directionsUrl(r.lat, r.lng)}" target="_blank" rel="noopener noreferrer">${ico("directions", { size: 15 })} Directions</a>
+           <button data-feed>See the job</button>
          </div>
        </div>`,
       { closeButton: false, className: "glass-popup", offset: [0, -6] },
@@ -149,29 +135,31 @@ function renderHighlight(container, quests) {
   if (!container) return;
   const q = quests[0];
   if (!q) {
-    container.innerHTML = `
-      <div class="card center" style="background:var(--glass-dark)">
-        <p class="muted">No quests found nearby.</p>
-        <p class="tiny" style="margin-top:6px">Try again from a different location.</p>
-      </div>`;
+    container.replaceChildren(emptyState({
+      icon: "search",
+      title: "No quests within walking distance",
+      body: "Nothing vetted nearby yet. Neighbours may have posted jobs, though.",
+      action: { label: "See community jobs", onClick: () => go("community") },
+    }));
     return;
   }
   const card = h(`
-    <div class="card tappable" style="cursor:pointer;background:var(--glass-dark)">
+    <div class="card tappable">
+      <p class="eyebrow" style="margin-bottom:var(--s3)">Closest to you</p>
       <div class="row">
-        <div class="thumb">${icon(q.category)}</div>
+        <div class="thumb">${icon(q.category, { size: 24 })}</div>
         <div class="grow">
-          ${q.verified ? `<div class="verified">✓ Verified organization</div>` : ""}
           <h3 class="truncate">${esc(q.org_name)}</h3>
-          <p class="tiny truncate">${esc(q.address)} · ${distanceLabel(q.distance_km)}</p>
+          <p class="tiny truncate">${esc(q.address)}${q.address ? " · " : ""}${distanceLabel(q.distance_km)}</p>
+          ${q.verified ? `<span class="verified">${ico("shield", { size: 14 })} Verified</span>` : ""}
         </div>
         <div style="text-align:right">
-          <div style="font-weight:800;color:var(--green)">+${q.estimated_points ?? 0}</div>
+          <div class="figure" style="font-size:24px;line-height:1">+${q.estimated_points ?? 0}</div>
           <div class="tiny">pts</div>
         </div>
       </div>
-      <div class="row-between" style="margin-top:12px;gap:10px">
-        <a class="btn-directions" data-directions target="_blank" rel="noopener noreferrer">🧭 Directions</a>
+      <div class="row-between" style="margin-top:var(--s4);gap:10px">
+        <a class="btn-directions" data-directions target="_blank" rel="noopener noreferrer">${ico("directions", { size: 16 })} Directions</a>
         <button class="btn btn-primary btn-sm" data-open>View quest</button>
       </div>
     </div>`);

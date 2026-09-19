@@ -10,6 +10,8 @@
    Nothing here touches `document` or `window` at import time, so the pure
    helpers at the top can be unit-tested in plain Node. */
 
+import { ico } from "./icons.js";
+
 export const MAX_CAPTURE_EDGE = 1600;
 
 /* ---------------------------------------------------------------- pure helpers */
@@ -102,7 +104,7 @@ export async function compressImage(file, maxEdge = 1024, quality = 0.82) {
 
 const CAMERA_TEMPLATE = `
   <div class="cam-top">
-    <button type="button" class="cam-close" data-cam-cancel aria-label="Close camera">✕</button>
+    <button type="button" class="cam-close" data-cam-cancel aria-label="Close camera">${ico("close", { size: 20 })}</button>
     <strong>Take a photo</strong>
     <span></span>
   </div>
@@ -120,7 +122,7 @@ const CAMERA_TEMPLATE = `
     </div>
   </div>
   <div class="cam-controls" data-cam-live>
-    <button type="button" class="cam-flip" data-cam-flip aria-label="Switch camera" hidden>⟲</button>
+    <button type="button" class="cam-flip" data-cam-flip aria-label="Switch camera" hidden>${ico("flip", { size: 22 })}</button>
     <button type="button" class="cam-shutter" data-cam-shoot aria-label="Take photo" disabled></button>
     <span class="cam-spacer"></span>
   </div>
@@ -393,10 +395,10 @@ export function setupPhotoInput({ dropzone, input, guide, onPhoto, onError }) {
   actions.innerHTML = `
     <div class="btn-row" role="group" aria-label="Add a photo">
       <button type="button" class="btn btn-ghost photo-btn" data-photo-camera>
-        <span aria-hidden="true">📷</span><span data-photo-camera-label>Take a photo</span>
+        ${ico("camera", { size: 18 })}<span data-photo-camera-label>Take a photo</span>
       </button>
       <button type="button" class="btn btn-ghost photo-btn" data-photo-upload>
-        <span aria-hidden="true">🖼️</span><span data-photo-upload-label>Upload a photo</span>
+        ${ico("image", { size: 18 })}<span data-photo-upload-label>Upload a photo</span>
       </button>
     </div>
     <button type="button" class="btn-link photo-remove" data-photo-remove hidden>Remove photo</button>`;

@@ -118,7 +118,7 @@ test.describe("every screen that accepts an image", () => {
     await expectFullPhotoFlow(p.page, { screenshotName: "08-campaign-proof-photo" });
 
     await card.getByRole("button", { name: /^Claim \d+ points$/ }).click();
-    await expect(card.getByText("✓ Done")).toBeVisible();
+    await expect(card.getByText("Done", { exact: true })).toBeVisible();
     await p.context.close();
   });
 });

@@ -92,16 +92,42 @@ box only needs that markup and one call.
 `getUserMedia` only exists on **https or localhost**. Testing from a phone over a
 plain `http://192.168.x.x` address falls back to the phone's camera app.
 
+## Design
+
+A light "field notes" look: a warm paper page, near-black green text and **one**
+accent (forest green). The rules the stylesheet keeps to, so it doesn't drift back
+to a generic AI-app look:
+
+- **No gradients, blur or glow.** Surfaces are flat and separated by hairlines and
+  space. Colour beyond the green is functional only (red = a neighbour's job or a
+  failure, sand = a heads-up).
+- **Real icons, not emoji.** Everything comes from `js/icons.js`. The server still
+  sends emoji for deed types and everyday deeds; the UI ignores them and maps by id
+  (`microIcon`, `deedIcon`). The emoji reactions on the Activity feed are content the
+  server fixes, so they stay.
+- **Hierarchy from type.** Fraunces (serif) for titles and big numbers, Figtree for
+  everything else; weights are 400 body / 600 labels, not 800 throughout.
+- **Left-aligned layouts** with a reading measure on desktop, not a centred column.
+- **Designed loading and empty states.** `skeleton()` keeps the shape of what is
+  coming; `emptyState()` says what a place is for and offers a next step.
+- **Plain, warm microcopy.** No "Submit", "Error" or "No data found".
+- **One hand-made detail:** the ink stamp (`stamp()` in `ui.js`, `.stamp` in the
+  CSS). A verified deed and a fixed community job are stamped, crooked, with uneven
+  ink (the `#ink-rough` SVG filter in `index.html`). Each tilts differently, from a seed.
+
+Text and background pairs were measured for contrast; if you add a colour, check it.
+
 ## Structure
 
 ```
 index.html          shell: banner, screen slot, bottom nav
-css/styles.css      design tokens (colors, radii, spacing) + components
+css/styles.css      design tokens (paper, ink, one green accent, type, spacing) + components
+js/icons.js         the icon set (a Lucide subset as inline SVG); nothing in the UI is an emoji
 js/config.js        API base URL, fallback location, mock switch
 js/api.js           fetch wrapper, bearer token, mock fallback
 js/mock.js          placeholder JSON matching backend/schemas.py
 js/router.js        hash router with in-memory params + auth guards
-js/ui.js            esc(), toast, badges, helpers
+js/ui.js            esc(), toast, icons by id, skeleton/empty states, the ink stamp
 js/photo.js         photo box: upload / camera, preview, retake (re-exported by ui.js)
 js/app.js           route table + bottom nav
 js/screens/*.js     one file per screen
