@@ -34,7 +34,7 @@ class PlacesProvider(Protocol):
 
 @runtime_checkable
 class LLMProvider(Protocol):
-    """Runs a structured Claude request and returns parsed JSON."""
+    """Runs a structured LLM request and returns parsed JSON."""
 
     def complete_json(
         self,

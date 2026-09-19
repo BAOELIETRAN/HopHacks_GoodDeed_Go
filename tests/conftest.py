@@ -13,6 +13,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 os.environ.setdefault("GOODDEED_USE_MOCKS", "1")
 
+# backend.main runs create_all()/ALTERs against DATABASE_URL at import time, and
+# backend.config loads the developer's .env first. Pin it empty (=> local SQLite,
+# which the tests override with in-memory anyway) so running pytest can never
+# touch a real Postgres/Supabase database. load_dotenv(override=False) leaves an
+# already-set variable alone, including an empty one.
+os.environ["DATABASE_URL"] = ""
+
 # Keep the suite hermetic: if the developer running it has a real .env with
 # live keys, it must not leak into tests that assert on provider selection.
 import gooddeed_agent.config as _config  # noqa: E402

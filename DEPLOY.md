@@ -71,12 +71,12 @@ localhost, deploy, then come back and add the real origin.
 
 1. [render.com](https://render.com) → **New → Blueprint** → connect the
    GitHub repo. It reads `render.yaml` and proposes one service.
-2. Set the four environment variables it asks for:
+2. Set the environment variables it asks for:
 
    | Variable | Value |
    |---|---|
    | `DATABASE_URL` | The Supabase **session pooler** URI from step 1 |
-   | `OPENAI_API_KEY` | Your OpenAI key (or use `ANTHROPIC_API_KEY` instead — set one) |
+   | `OPENAI_API_KEY` | Your OpenAI key (platform.openai.com). If an old `ANTHROPIC_API_KEY` is still set on an existing service, delete it: it is ignored |
    | `GOOGLE_MAPS_API_KEY` | Your Maps key, with **Places API (New)** enabled |
    | `GOOGLE_CLIENT_ID` | The OAuth client ID from step 2 |
    | `REFRESH_TOKEN` | Any long random string. Guards the daily-refresh endpoint; the blueprint generates one for you |
@@ -104,7 +104,7 @@ curl https://YOUR-APP.onrender.com/health
 ```
 
 ```json
-{"status":"ok","agent":{"places_provider":"google","llm_provider":"claude"},"database":"postgresql"}
+{"status":"ok","agent":{"places_provider":"google","llm_provider":"openai"},"database":"postgresql"}
 ```
 
 Check all three:
@@ -112,7 +112,7 @@ Check all three:
 - `"database":"postgresql"` — not `sqlite`. If it says sqlite, `DATABASE_URL`
   didn't reach the app and **accounts will vanish on the next restart**.
 - `"places_provider":"google"` — not `mock`. Otherwise the map shows stub orgs.
-- `"llm_provider":"claude"` — not `mock`. Otherwise scoring is fake.
+- `"llm_provider":"openai"` — not `mock`. Otherwise scoring is fake.
 
 Then `https://YOUR-APP.onrender.com/auth/config` should report
 `{"google_enabled":true,...}`. If it's false, `GOOGLE_CLIENT_ID` isn't set and
@@ -131,16 +131,16 @@ DATABASE_URL="<the supabase pooler uri>" python3 scripts/seed_demo.py
 
 ## Rotate your keys before going public
 
-The Anthropic and Google Maps keys used during development were pasted into
+The OpenAI and Google Maps keys used during development were pasted into
 a chat transcript. Once the app is on a public URL:
 
 1. Create new keys in both consoles and update them in Render.
 2. Delete the old ones.
-3. **Restrict the Maps key** to the Places API, and set an Anthropic spend
-   cap — a public URL means strangers can trigger your paid API calls.
+3. **Restrict the Maps key** to the Places API, and set an OpenAI spend
+   limit — a public URL means strangers can trigger your paid API calls.
 
 Anyone can sign up on a public deployment, and every submission costs an
-Anthropic vision call. There is no rate limiting in this build.
+OpenAI vision call. There is no rate limiting in this build.
 
 
 ## Daily opportunity refresh

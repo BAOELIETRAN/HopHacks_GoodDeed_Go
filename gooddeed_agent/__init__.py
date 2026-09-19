@@ -11,7 +11,7 @@ deterministic stub data when API keys are absent):
 Plus the pure scoring helpers the backend needs for tiers and leaderboards:
 ``compute_points``, ``tier_for_points``, ``points_to_next_tier``, ``leaderboard``.
 
-Set ANTHROPIC_API_KEY and GOOGLE_MAPS_API_KEY to use the real APIs, or
+Set OPENAI_API_KEY and GOOGLE_MAPS_API_KEY to use the real APIs, or
 GOODDEED_USE_MOCKS=1 to force stub data. See README.md.
 """
 

@@ -5,7 +5,7 @@
 # frontend/ as static files instead, so there is one URL for everything.
 #
 # To use: Render dashboard -> New -> Blueprint -> pick this repo.
-# Then set the four secret env vars marked sync:false in the dashboard.
+# Then set the secret env vars marked sync:false in the dashboard.
 
 services:
   - type: web
@@ -29,11 +29,9 @@ services:
       - key: DATABASE_URL
         sync: false
 
-      # Set ONE of these two. OpenAI wins if both are present.
+      # OpenAI key for photo scoring, trust checks and report triage. Unset,
+      # the agent serves mock data (check "llm_provider" on /health).
       - key: OPENAI_API_KEY
-        sync: false
-
-      - key: ANTHROPIC_API_KEY
         sync: false
 
       - key: GOOGLE_MAPS_API_KEY

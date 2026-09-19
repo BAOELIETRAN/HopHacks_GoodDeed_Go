@@ -98,7 +98,7 @@ A Places failure returns `[]` rather than raising.
 
 ### `score_submission(photo, description, org_name, time_spent_minutes, **opts) -> dict`
 
-Sends the photo and text to Claude, then converts the verdict into points.
+Sends the photo and text to the model, then converts the verdict into points.
 
 ```json
 {"points": 36, "tier_points": 36, "authenticity_confidence": 0.92,
@@ -230,10 +230,10 @@ file. `.env` is gitignored — never commit it.
 
 | Variable | Effect |
 |---|---|
-| `ANTHROPIC_API_KEY` | Enables real Claude calls (scoring, trust, triage) |
+| `OPENAI_API_KEY` | Enables real OpenAI calls (scoring, trust, triage) |
 | `GOOGLE_MAPS_API_KEY` | Enables real Places search. Needs **Places API (New)** enabled |
 | `GOODDEED_USE_MOCKS=1` | Forces stubs even with keys present |
-| `GOODDEED_MODEL` | Model override (default `claude-opus-5`) |
+| `GOODDEED_MODEL` | Model override (default `gpt-5`) |
 
 The two keys are independent: real Places with a mocked LLM works fine.
 `GET /health` or the `python -m gooddeed_agent` header tells you which mode
@@ -249,8 +249,8 @@ to estimate real-world impact — that isn't visible in a photo, and rewarding
 guesses at it would just teach users to write better captions.
 
 **Failures degrade, they don't raise.** Every agent function catches provider
-errors and returns a valid, zero-value result with an explanatory string. A
-Claude outage should queue a submission for retry, not 500 the app. The one
+errors and returns a valid, zero-value result with an explanatory string. An
+LLM outage should queue a submission for retry, not 500 the app. The one
 place this is asymmetric is `classify_report`: failures return `is_valid: false`
 so nothing unreviewed reaches the public feed.
 
@@ -278,7 +278,8 @@ discovery.py       find_opportunities, trust_check
   providers/
     base.py          PlacesProvider / LLMProvider protocols
     google_places.py Places API (New)
-    claude_llm.py    Claude vision + web search + structured output
+    openai_llm.py    OpenAI vision + web search + structured output
+    images.py        photo -> content block (media sniffing, HEIC check)
     mock.py          deterministic stubs
 tests/               160 tests, no network required
 ```

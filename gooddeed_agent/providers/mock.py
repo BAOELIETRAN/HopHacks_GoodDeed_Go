@@ -83,7 +83,7 @@ class MockPlacesProvider:
 
 
 class MockLLMProvider:
-    """Stands in for Claude. Implements :class:`LLMProvider`.
+    """Stands in for OpenAI. Implements :class:`LLMProvider`.
 
     It inspects the JSON schema it was handed and produces a plausible,
     schema-shaped answer. Text in the prompt containing obvious spam markers

@@ -1,21 +1,20 @@
 """OpenAI-backed LLM provider (vision, web search, structured output).
 
-The mirror of :mod:`claude_llm`, implementing the same
-:class:`~.base.LLMProvider` protocol so the agent functions above it do not
-change. Built on the Responses API rather than Chat Completions, because it
-is the only one of the two that offers the hosted ``web_search`` tool, and
+Implements :class:`~.base.LLMProvider`, the one seam the agent functions call.
+Built on the Responses API rather than Chat Completions, because it is the
+only one of the two that offers the hosted ``web_search`` tool, and
 ``trust_check`` and ``verify_donation_link`` are worthless without search.
 
-Three shape differences from Anthropic have to be absorbed here:
+Three things have to be handled here:
 
-* **Content blocks.** Callers build Anthropic-shaped blocks (and
+* **Content blocks.** Callers build provider-neutral text/image blocks (and
   ``build_image_block`` is shared, so photo sniffing and the HEIC message stay
-  in one place). They are translated on the way out.
-* **Structured output.** ``text.format`` with ``strict: true`` is the
-  equivalent of ``output_config.format``. Strict mode is fussier than
-  Anthropic's -- every object needs ``additionalProperties: false`` and a
-  ``required`` naming every property -- so the schema is normalised rather
-  than trusted.
+  in one place). They are translated to Responses API input parts on the way
+  out.
+* **Structured output.** ``text.format`` with ``strict: true`` constrains the
+  answer to the schema. Strict mode is fussy -- every object needs
+  ``additionalProperties: false`` and a ``required`` naming every property --
+  so the schema is normalised rather than trusted.
 * **Reasoning effort.** Only reasoning models accept it; sending it to a
   gpt-4o-class model is a 400, so it is sent conditionally.
 """
@@ -48,7 +47,7 @@ def _is_reasoning_model(model: str) -> bool:
 
 
 def to_openai_content(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Translate Anthropic content blocks into Responses API input parts."""
+    """Translate provider-neutral content blocks into Responses API input parts."""
     out: list[dict[str, Any]] = []
     for block in blocks:
         kind = block.get("type")
