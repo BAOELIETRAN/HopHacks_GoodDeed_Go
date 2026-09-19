@@ -24,6 +24,9 @@ _ADDITIVE_COLUMNS: dict[str, dict[str, str]] = {
         "google_sub": "VARCHAR(64)",
         "avatar_url": "VARCHAR(512)",
     },
+    "friend_groups": {
+        "cause_key": "VARCHAR(32)",
+    },
     "submissions": {
         "checkin_id": "VARCHAR(32)",
         "verified_presence": "BOOLEAN",

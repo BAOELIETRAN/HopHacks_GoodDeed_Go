@@ -274,6 +274,37 @@ class CommentIn(BaseModel):
     text: str = Field(min_length=1, max_length=280)
 
 
+# --- team cause -----------------------------------------------------------
+
+class CauseOut(BaseModel):
+    key: str
+    title: str
+    icon: str
+    blurb: str
+    unit: str
+    points_per_unit: int
+    source: str
+    selected: bool = False
+
+
+class TeamImpactOut(BaseModel):
+    """What the team's pooled points add up to, in the real world."""
+
+    has_team: bool
+    member_count: int
+    team_points: int
+    your_points: int
+    cause: CauseOut
+    units: int                 # whole units achieved, floored
+    unit_label: str            # e.g. "meals"
+    points_to_next_unit: int
+    causes: list[CauseOut]
+
+
+class SetCauseIn(BaseModel):
+    cause_key: str
+
+
 # --- weekly recap ---------------------------------------------------------
 
 class WeeklyRecapOut(BaseModel):

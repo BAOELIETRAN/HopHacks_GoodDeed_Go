@@ -69,6 +69,10 @@
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px;
   --s5: 20px; --s6: 24px; --s7: 32px; --s8: 40px;
 
+  /* Overridden inline per avatar/frame tile. Defined here so a tile that
+     forgets to set it still draws a ring instead of nothing. */
+  --frame-ring: rgba(255, 255, 255, .28);
+
   --phone-w: 430px;
   --nav-h: 76px;
 }
@@ -486,6 +490,12 @@ textarea { resize: vertical; min-height: 92px; line-height: 1.5; }
   background: linear-gradient(90deg, rgba(92,203,125,.26) 0%, rgba(92,203,125,.10) 100%);
   border-color: rgba(92,203,125,.44);
 }
+.lb-points {
+  font-weight: 800; color: var(--green); font-size: 15px;
+  display: inline-flex; align-items: baseline; gap: 3px;
+}
+.lb-points em { font-style: normal; font-size: 10px; font-weight: 700; color: var(--ink-faint); }
+
 .lb-row .rank { font-weight: 800; width: 22px; color: var(--ink-faint); }
 .avatar {
   width: 34px; height: 34px; border-radius: 50%; flex: 0 0 auto;
@@ -503,6 +513,32 @@ textarea { resize: vertical; min-height: 92px; line-height: 1.5; }
   border-bottom: 1px solid rgba(255,255,255,.10);
 }
 .list-row:last-child { border-bottom: 0; }
+
+/* ---------- Team impact ----------
+   Sits under the companion on purpose: the creature is the game, this is
+   what the game is for. */
+.impact-card { text-align: left; }
+.impact-headline { display: flex; align-items: center; gap: var(--s3); margin-top: 8px; }
+.impact-ico { font-size: 34px; line-height: 1; }
+.impact-headline strong { display: block; font-size: 22px; font-weight: 800; letter-spacing: -.5px; }
+.impact-headline em { font-style: normal; font-size: 13px; color: var(--ink-soft); }
+/* The provenance line is small but must stay readable: it is the claim's
+   receipt, and an unreadable disclaimer is not a disclaimer. */
+.impact-source {
+  font-size: 11px; color: rgba(255,255,255,.72); margin-top: 10px; line-height: 1.5;
+}
+.cause-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; margin-top: 12px; }
+.cause-tile {
+  display: flex; align-items: center; gap: 8px; cursor: pointer; font-family: inherit;
+  text-align: left; padding: 10px 12px; border-radius: var(--r-sm);
+  background: var(--glass-weak); border: 1px solid var(--glass-border);
+}
+.cause-tile span { font-size: 18px; }
+.cause-tile em { font-style: normal; font-weight: 800; font-size: 12px; color: var(--ink); }
+.cause-tile.selected {
+  background: linear-gradient(180deg, rgba(92,203,125,.26) 0%, rgba(92,203,125,.12) 100%);
+  border-color: rgba(92,203,125,.5);
+}
 
 /* ---------- Weekly recap ---------- */
 .recap-overlay {

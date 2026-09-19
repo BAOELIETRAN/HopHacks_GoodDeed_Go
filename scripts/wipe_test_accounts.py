@@ -18,7 +18,7 @@ from backend.database import SessionLocal
 # Prefixes used by the test harnesses. Real signups never look like these.
 TEST_PREFIXES = (
     "today_", "cmp_", "eng_", "soc_", "rec_", "recapui_", "team_",
-    "live_", "dbg_", "helper@", "persist@",
+    "live_", "dbg_", "lb_", "imp_", "cz_", "helper@", "persist@",
 )
 
 

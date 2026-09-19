@@ -183,24 +183,57 @@ def test_submission_rejects_missing_auth(client: TestClient):
 # --- leaderboard -----------------------------------------------------------
 
 
-def test_leaderboard_nearby_ranks_and_flags_self(client: TestClient):
+def test_leaderboard_ranks_teammates_and_flags_self(client: TestClient):
+    """Friends scope ranks everyone in the group and marks the requester.
+
+    Replaces the old "nearby" coverage: that scope was removed because
+    ranking someone against strangers turns a shared effort into a
+    scoreboard against people they will never meet.
+    """
     a = signup(client, "Alice", "alice@example.com")["token"]
     b = signup(client, "Bob", "bob@example.com")["token"]
+
+    code = client.post("/friends/invite", headers=auth(a)).json()["invite_code"]
+    client.post("/friends/join", json={"invite_code": code}, headers=auth(b))
 
     client.get("/quests", params={**OAKLAND, "radius": 5}, headers=auth(a))
     _submit(client, a)
     _submit(client, b, org_name="Riverside Community Food Bank")
 
-    resp = client.get("/leaderboard", params={"scope": "nearby", "period": "weekly"}, headers=auth(a))
+    resp = client.get("/leaderboard", params={"period": "weekly"}, headers=auth(a))
     assert resp.status_code == 200
     rows = resp.json()
     assert len(rows) == 2
-    ranks = {r["user_id"]: r for r in rows}
     you_flags = [r["is_you"] for r in rows]
     assert you_flags.count(True) == 1  # exactly Alice, the requester
     for r in rows:
         assert r["deed_count"] >= 0
         assert r["rank"] >= 1
+
+
+def test_leaderboard_rejects_the_removed_nearby_scope(client: TestClient):
+    a = signup(client, "Ada", "ada.scope@example.com")["token"]
+    resp = client.get(
+        "/leaderboard", params={"scope": "nearby", "period": "weekly"}, headers=auth(a)
+    )
+    assert resp.status_code == 422
+
+
+def test_leaderboard_counts_everyday_deeds(client: TestClient):
+    """Everyday deeds carry points, so they have to appear on the board.
+
+    Leaving them out showed someone with six logged kindnesses sitting at
+    zero, which reads as a broken board rather than a scoring choice.
+    """
+    a = signup(client, "Mo", "mo.micro@example.com")["token"]
+
+    todays = client.get("/tasks/today", headers=auth(a)).json()["deeds"]
+    for deed in todays[:3]:
+        client.post(f"/tasks/{deed['id']}/complete", json={}, headers=auth(a))
+
+    rows = client.get("/leaderboard", params={"period": "weekly"}, headers=auth(a)).json()
+    assert rows[0]["points"] > 0
+    assert rows[0]["deed_count"] == 3
 
 
 def test_leaderboard_friends_scope_defaults_to_self_only(client: TestClient):

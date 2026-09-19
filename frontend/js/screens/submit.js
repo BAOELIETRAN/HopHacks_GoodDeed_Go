@@ -191,31 +191,9 @@ export async function renderSubmit(root, { quest, checkin, deedType } = {}) {
 
       <div id="deed-fields"></div>
 
-      ${measured
-        ? `<div class="panel panel-mint">
-             <div class="row-between">
-               <div>
-                 <strong style="font-size:14px">✓ ${measured.elapsed_minutes} minutes, verified</strong>
-                 <p class="tiny" style="margin-top:3px">
-                   Timed on site. Nothing to type in, and worth more than a self-reported shift.
-                 </p>
-               </div>
-             </div>
-             <input type="hidden" id="mins" value="${measured.elapsed_minutes}">
-           </div>`
-        : `<label class="field">
-             <span>Time spent (minutes)</span>
-             <input type="number" id="mins" min="0" max="600" step="5" value="45">
-             <p class="tiny" style="margin-top:6px">
-               Self-reported. Starting from the quest screen times it for you and scores higher.
-             </p>
-           </label>`}
-
-      <div class="panel panel-yellow">
-        <p style="font-size:13px;font-weight:700">
-          AI checks the task, place and safety — not your identity.
-        </p>
-      </div>
+      <p class="tiny center" style="margin-top:var(--s2)">
+        AI checks the task and the evidence — not your identity.
+      </p>
 
       <p class="err" id="formerr" hidden></p>
       <button class="btn btn-primary" id="send">Submit deed</button>

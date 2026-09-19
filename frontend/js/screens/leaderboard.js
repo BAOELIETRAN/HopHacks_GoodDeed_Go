@@ -3,7 +3,6 @@
 import { api, state } from "../api.js";
 import { deedIcon, empty, esc, initials, spinner, statusbar, tierBadge } from "../ui.js";
 
-let scope = "nearby";
 let period = "weekly";
 
 /** The backend returns points per period, not cumulative tier points, so a
@@ -19,13 +18,9 @@ export async function renderLeaderboard(root) {
     ${statusbar()}
     <div class="appbar"><span></span><h3>Leaderboards</h3><span></span></div>
     <div class="pad stack">
-      <div class="segmented" id="scope">
-        <button data-v="nearby" aria-selected="${scope === "nearby"}">Nearby</button>
-        <button data-v="friends" aria-selected="${scope === "friends"}">Friends</button>
-      </div>
-      <div class="pills center" id="period" style="justify-content:center">
-        <button data-v="daily" aria-selected="${period === "daily"}">Daily</button>
-        <button data-v="weekly" aria-selected="${period === "weekly"}">Weekly</button>
+      <div class="segmented" id="period">
+        <button data-v="daily" aria-selected="${period === "daily"}">Today</button>
+        <button data-v="weekly" aria-selected="${period === "weekly"}">This week</button>
       </div>
     </div>
     <div class="pad" style="padding-top:4px">
@@ -39,31 +34,25 @@ export async function renderLeaderboard(root) {
 
   const load = async () => {
     board.innerHTML = spinner();
-    const rows = await api.leaderboard(scope, period);
+    const rows = await api.leaderboard("friends", period);
     if (!rows.length) {
       board.innerHTML = empty(
-        "🏅",
-        scope === "friends" ? "No friends yet" : "No ranked deeds yet",
-        scope === "friends"
-          ? "Share an invite code from your profile to start a group."
-          : `Nobody nearby has logged a verified deed ${period === "daily" ? "today" : "this week"}. Be first.`,
+        "🏅", "No deeds yet",
+        `Nobody on your team has logged anything ${period === "daily" ? "today" : "this week"}. Be first.`,
       );
       return;
     }
     board.innerHTML = renderBoard(rows);
   };
 
-  const wire = (id, set) =>
-    root.querySelectorAll(`#${id} button`).forEach((btn) => {
-      btn.onclick = () => {
-        set(btn.dataset.v);
-        root.querySelectorAll(`#${id} button`).forEach((b) =>
-          b.setAttribute("aria-selected", String(b.dataset.v === (id === "scope" ? scope : period))));
-        load();
-      };
-    });
-  wire("scope", (v) => { scope = v; });
-  wire("period", (v) => { period = v; });
+  root.querySelectorAll("#period button").forEach((btn) => {
+    btn.onclick = () => {
+      period = btn.dataset.v;
+      root.querySelectorAll("#period button").forEach((b) =>
+        b.setAttribute("aria-selected", String(b.dataset.v === period)));
+      load();
+    };
+  });
 
   load();
 }
@@ -77,16 +66,16 @@ function renderBoard(rows) {
     <div class="podium" style="margin-bottom:16px">
       <div class="slot p2">
         <div class="medal">🥈</div><div class="nm">${esc(second.name)}</div>
-        <div class="pts">${second.points}</div>
+        <div class="pts">${second.points} pts</div>
       </div>
       <div class="slot p1">
         <div class="medal">🏆</div><div class="nm">${esc(first.name)}</div>
-        <div class="pts">${first.points}</div>
+        <div class="pts">${first.points} pts</div>
         <span class="chip chip-yellow" style="margin-top:6px;font-size:11px">${first.deed_count} quests</span>
       </div>
       <div class="slot p3">
         <div class="medal">🥉</div><div class="nm">${esc(third.name)}</div>
-        <div class="pts">${third.points}</div>
+        <div class="pts">${third.points} pts</div>
       </div>
     </div>` : "";
 
@@ -101,8 +90,9 @@ function renderBoard(rows) {
               (r.deed_types || []).map((d) => deedIcon(d)).join("")
             }</span>` : ""}
       </span>
+      ${r.deed_count ? `<span class="tiny">${r.deed_count} deed${r.deed_count === 1 ? "" : "s"}</span>` : ""}
       ${tierBadge(tierFor(r.points))}
-      <span style="font-weight:800;color:var(--green-press)">${r.points}</span>
+      <span class="lb-points">${r.points}<em>pts</em></span>
     </div>`).join("");
 
   return podium + rest;

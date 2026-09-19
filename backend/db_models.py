@@ -90,6 +90,11 @@ class Session(Base):
 class FriendGroup(Base):
     __tablename__ = "friend_groups"
 
+    # The cause this team is pooling its points toward. See causes.py --
+    # this is what stops the app from being a points game with a charity
+    # skin: the score is always expressed as something real.
+    cause_key: Mapped[str] = mapped_column(String(32), default="meals")
+
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
     invite_code: Mapped[str] = mapped_column(String(16), unique=True, index=True)
     created_by: Mapped[str] = mapped_column(String(32), ForeignKey("users.id"))

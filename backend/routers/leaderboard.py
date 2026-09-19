@@ -9,10 +9,8 @@ from sqlalchemy.orm import Session as DbSession
 
 from .. import db_models as m
 from ..agent_client import leaderboard as rank_entries
-from ..config import LEADERBOARD_NEARBY_RADIUS_KM
 from ..database import get_db
 from ..deps import get_current_user
-from ..geo import haversine_km
 from ..schemas import LeaderboardEntry
 
 router = APIRouter(tags=["leaderboard"])
@@ -23,33 +21,28 @@ def _period_cutoff(period: Literal["daily", "weekly"]) -> datetime:
     return now - timedelta(days=1 if period == "daily" else 7)
 
 
-def _candidate_ids(db: DbSession, user: m.User, scope: Literal["friends", "nearby"]) -> list[str]:
-    if scope == "friends":
-        if user.friend_group_id is None:
-            return [user.id]
-        rows = db.query(m.User.id).filter(m.User.friend_group_id == user.friend_group_id).all()
-        return [r[0] for r in rows]
+def _candidate_ids(db: DbSession, user: m.User) -> list[str]:
+    """Who appears on the board: the user's team, or just them.
 
-    # nearby: everyone with a known location, within radius of the requester's
-    # last known location (set on their most recent submission).
-    if user.lat is None or user.lng is None:
+    Friends only. A "nearby" board ranks you against strangers, which turns
+    a shared effort into a scoreboard against people you will never meet --
+    and on a small install it is a board of one anyway. The competition this
+    app wants is between people who know each other and can nudge each other.
+    """
+    if user.friend_group_id is None:
         return [user.id]
-    rows = db.query(m.User.id, m.User.lat, m.User.lng).filter(m.User.lat.isnot(None)).all()
-    return [
-        uid
-        for uid, lat, lng in rows
-        if haversine_km(user.lat, user.lng, lat, lng) <= LEADERBOARD_NEARBY_RADIUS_KM
-    ]
+    rows = db.query(m.User.id).filter(m.User.friend_group_id == user.friend_group_id).all()
+    return [r[0] for r in rows] or [user.id]
 
 
 @router.get("/leaderboard", response_model=list[LeaderboardEntry])
 def get_leaderboard(
-    scope: Literal["friends", "nearby"] = Query(...),
+    scope: Literal["friends"] = Query(default="friends"),
     period: Literal["daily", "weekly"] = Query(...),
     db: DbSession = Depends(get_db),
     user: m.User = Depends(get_current_user),
 ) -> list[LeaderboardEntry]:
-    candidate_ids = _candidate_ids(db, user, scope)
+    candidate_ids = _candidate_ids(db, user)
     cutoff = _period_cutoff(period)
 
     # "Only verified completions count" (leaderboard screen copy) -- exclude
@@ -71,6 +64,26 @@ def get_leaderboard(
     sums = {uid: int(total) for uid, total, _count in rows}
     counts = {uid: int(count) for uid, _total, count in rows}
 
+    # Everyday deeds count too. Leaving them out meant someone who had
+    # logged six small kindnesses showed up with 0 points, which reads as
+    # the board being broken rather than as a scoring decision.
+    for uid, total, count in (
+        db.query(
+            m.MicroDeedDone.user_id,
+            func.sum(m.MicroDeedDone.points),
+            func.count(m.MicroDeedDone.id),
+        )
+        .filter(
+            m.MicroDeedDone.user_id.in_(candidate_ids),
+            m.MicroDeedDone.created_at >= cutoff,
+            m.MicroDeedDone.points > 0,
+        )
+        .group_by(m.MicroDeedDone.user_id)
+        .all()
+    ):
+        sums[uid] = sums.get(uid, 0) + int(total)
+        counts[uid] = counts.get(uid, 0) + int(count)
+
     # Which kinds of deed each person actually did in the period.
     kinds: dict[str, list[str]] = {}
     for uid, deed_type, n in (
@@ -85,6 +98,18 @@ def get_leaderboard(
         .all()
     ):
         kinds.setdefault(uid, []).append(deed_type or "volunteer")
+
+    for uid, in (
+        db.query(m.MicroDeedDone.user_id)
+        .filter(
+            m.MicroDeedDone.user_id.in_(candidate_ids),
+            m.MicroDeedDone.created_at >= cutoff,
+            m.MicroDeedDone.points > 0,
+        )
+        .group_by(m.MicroDeedDone.user_id)
+        .all()
+    ):
+        kinds.setdefault(uid, []).append("kindness")
 
     entries = [(uid, sums.get(uid, 0)) for uid in candidate_ids]
     ranked = rank_entries(entries)

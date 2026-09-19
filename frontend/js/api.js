@@ -114,6 +114,9 @@ export const api = {
   quests: (lat, lng, radius) =>
     withFallback(() => request(`/quests?${qs({ lat, lng, radius })}`), mock.MOCK_QUESTS),
 
+  teamImpact: () => withFallback(() => request("/team/impact"), null),
+  setCause: (cause_key) => request("/team/cause", { method: "POST", body: { cause_key } }),
+
   weeklyRecap: () => withFallback(() => request("/recap/weekly"), null),
 
   // --- friends activity feed ----------------------------------------------
@@ -154,7 +157,10 @@ export const api = {
 
   // --- leaderboard ---------------------------------------------------------
   leaderboard: (scope, period) =>
-    withFallback(() => request(`/leaderboard?${qs({ scope, period })}`), mock.MOCK_LEADERBOARD),
+    withFallback(
+      () => request(`/leaderboard?${qs({ scope: scope || "friends", period })}`),
+      mock.MOCK_LEADERBOARD,
+    ),
 
   // --- community reports ----------------------------------------------------
   reports: (lat, lng, radius, status) =>
