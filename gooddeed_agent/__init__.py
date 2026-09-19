@@ -19,7 +19,14 @@ from __future__ import annotations
 
 from .config import Settings, load_settings
 from .discovery import categorize, find_opportunities, heuristic_legitimacy, trust_check
-from .models import Opportunity, ReportClassification, ScoreResult, TrustResult
+from .models import (
+    CommunityReport,
+    Opportunity,
+    ReportClassification,
+    ScoreResult,
+    Submission,
+    TrustResult,
+)
 from .providers import (
     LLMProvider,
     MockLLMProvider,
@@ -41,7 +48,13 @@ from .scoring import (
     tier_for_points,
     time_bonus,
 )
-from .vision import REPORT_CATEGORIES, classify_report, score_submission
+from .vision import (
+    REPORT_CATEGORIES,
+    classify_report,
+    classify_report_from_dict,
+    score_submission,
+    score_submission_from_dict,
+)
 
 __version__ = "0.1.0"
 
@@ -56,6 +69,11 @@ __all__ = [
     "ScoreResult",
     "TrustResult",
     "ReportClassification",
+    "Submission",
+    "CommunityReport",
+    # Adapters for stored backend records
+    "score_submission_from_dict",
+    "classify_report_from_dict",
     # Pure scoring / tier helpers for the backend
     "compute_points",
     "tier_for_points",

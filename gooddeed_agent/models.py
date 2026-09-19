@@ -33,6 +33,59 @@ class Opportunity:
 
 
 @dataclass
+class Submission:
+    """One user's claimed good deed, as the backend stores it.
+
+    The agent layer does not create these -- the backend does -- but scoring
+    consumes them, so the shape lives here to keep one source of truth. Pass
+    one straight to ``score_submission_from_dict``.
+    """
+
+    user_id: str
+    org_name: str
+    photo_url: str
+    description: str
+    time_spent_minutes: int
+    lat: float
+    lng: float
+    submitted_at: str  # ISO-8601
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Submission":
+        """Build from a plain dict, ignoring any extra keys the backend adds."""
+        return cls(**{f: data[f] for f in cls.__dataclass_fields__ if f in data})
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class CommunityReport:
+    """A user-posted "this needs fixing" item on the community feed.
+
+    ``status`` moves open -> claimed -> done; the original poster marks it
+    done and the backend drops it from the feed. The agent layer only ever
+    triages these (see ``classify_report``); it does not own the lifecycle.
+    """
+
+    report_id: str
+    photo_url: str
+    description: str
+    lat: float
+    lng: float
+    status: ReportStatus = "open"
+    claimed_by: Optional[str] = None
+    created_at: str = ""  # ISO-8601
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "CommunityReport":
+        return cls(**{f: data[f] for f in cls.__dataclass_fields__ if f in data})
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class ScoreResult:
     """The result of grading one submission.
 

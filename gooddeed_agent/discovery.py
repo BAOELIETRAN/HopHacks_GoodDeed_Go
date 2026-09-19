@@ -249,6 +249,7 @@ def find_opportunities(
     min_legitimacy: float = 0.4,
     verify: bool = False,
     max_verify: int = 5,
+    include_description: bool = False,
     places: PlacesProvider | None = None,
     llm: LLMProvider | None = None,
 ) -> list[dict[str, Any]]:
@@ -265,6 +266,11 @@ def find_opportunities(
             default because it costs one LLM call per org; turn it on for a
             curated map refresh rather than every pan of the viewport.
         max_verify: How many of the top results to verify when ``verify`` is on.
+        include_description: Add a ``description`` key carrying the one-line
+            web-search summary of the org. Requires ``verify=True`` to be
+            populated (that search is where the text comes from); otherwise it
+            is an empty string. Off by default so the returned dict matches
+            the seven-field Opportunity contract exactly.
         places, llm: Injected providers. Defaults come from the environment,
             falling back to mocks when keys are absent.
 
@@ -297,7 +303,9 @@ def find_opportunities(
             if result["confidence"] > 0.0:
                 verified = result["confidence"] if result["legit"] else result["confidence"] * 0.3
                 # Blend so a confident web verdict dominates but Places signal
-                # still counts for something.
+                # still counts for something. Keep the summary -- it is the
+                # short description the web search was run for.
+                place = {**place, "web_summary": result["summary"]}
                 scored[index] = (round(0.75 * verified + 0.25 * heuristic, 2), place)
         scored.sort(key=lambda item: -item[0])
 
@@ -306,17 +314,20 @@ def find_opportunities(
         if legitimacy < min_legitimacy:
             continue
         category = normalize_category(place["category"])
-        opportunities.append(
-            Opportunity(
-                org_name=place["name"],
-                address=place.get("address") or "",
-                lat=float(place["lat"]),
-                lng=float(place["lng"]),
-                category=category,
-                legitimacy_score=legitimacy,
-                quest_type=quest_type_for(category),
-            ).to_dict()
-        )
+        record = Opportunity(
+            org_name=place["name"],
+            address=place.get("address") or "",
+            lat=float(place["lat"]),
+            lng=float(place["lng"]),
+            category=category,
+            legitimacy_score=legitimacy,
+            quest_type=quest_type_for(category),
+        ).to_dict()
+        if include_description:
+            # Extra key, never a renamed one -- consumers expecting the bare
+            # seven-field contract are unaffected.
+            record["description"] = place.get("web_summary", "")
+        opportunities.append(record)
         if len(opportunities) >= max_results:
             break
 

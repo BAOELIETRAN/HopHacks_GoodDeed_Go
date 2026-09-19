@@ -13,7 +13,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from .models import ReportClassification, ScoreResult
+from .models import CommunityReport, ReportClassification, ScoreResult, Submission
 from .providers import LLMProvider, get_llm_provider
 from .scoring import (
     MIN_AUTHENTICITY,
@@ -201,6 +201,28 @@ def _default_rationale(confidence: float) -> str:
     return "We couldn't confirm this photo matches the described deed."
 
 
+def score_submission_from_dict(
+    submission: Submission | dict[str, Any], **options: Any
+) -> dict[str, Any]:
+    """Score a stored Submission record directly.
+
+    Saves the backend from unpacking the contract shape by hand -- note that
+    the record's field is ``photo_url`` while the function parameter is
+    ``photo``, which is exactly the kind of mismatch this avoids.
+
+    Accepts a ``Submission`` or a plain dict; extra keys are ignored. All
+    :func:`score_submission` keyword options pass through.
+    """
+    record = submission if isinstance(submission, Submission) else Submission.from_dict(submission)
+    return score_submission(
+        record.photo_url,
+        record.description,
+        record.org_name,
+        record.time_spent_minutes,
+        **options,
+    )
+
+
 # --- Community report triage ------------------------------------------------
 
 REPORT_CATEGORIES = [
@@ -300,6 +322,18 @@ def classify_report(
         confidence=round(_clamp01(raw.get("confidence", 0.0)), 2),
         reason=str(raw.get("reason", "")).strip(),
     ).to_dict()
+
+
+def classify_report_from_dict(
+    report: CommunityReport | dict[str, Any], **options: Any
+) -> dict[str, Any]:
+    """Triage a stored CommunityReport record directly.
+
+    Same purpose as :func:`score_submission_from_dict`: the record carries
+    ``photo_url``, the function takes ``photo``.
+    """
+    record = report if isinstance(report, CommunityReport) else CommunityReport.from_dict(report)
+    return classify_report(record.photo_url, record.description, **options)
 
 
 def _clamp01(value: Any) -> float:

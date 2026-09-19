@@ -45,6 +45,11 @@ filters the list), `queries` (override the nonprofit search terms), and
 results. **`verify` is off by default** — it costs one LLM call per org, so use
 it on a periodic map refresh, not on every pan of the viewport.
 
+`include_description=True` adds a `description` key with the one-line
+web-search summary of the org (needs `verify=True` to be populated). It's
+opt-in so the default return value matches the seven-field Opportunity
+contract exactly.
+
 A Places failure returns `[]` rather than raising.
 
 ### `score_submission(photo, description, org_name, time_spent_minutes, **opts) -> dict`
@@ -96,6 +101,23 @@ Triages a community "needs fixing" photo.
 problems (an identifiable face or plate as the subject), and anything needing
 emergency services rather than volunteers. **A failure also returns
 `is_valid: false`**, so nothing unreviewed reaches the public feed.
+
+## Passing stored records straight in
+
+Your `Submission` record calls it `photo_url`; `score_submission` takes `photo`.
+Rather than unpack that by hand every time, pass the record:
+
+```python
+from gooddeed_agent import score_submission_from_dict, classify_report_from_dict
+
+score  = score_submission_from_dict(submission_row, category="food_bank")
+triage = classify_report_from_dict(report_row)
+```
+
+Both accept a plain dict or the matching dataclass, ignore extra keys your
+table adds, and forward every keyword option. `Submission` and
+`CommunityReport` are also importable if you want the shapes as dataclasses —
+their fields are asserted against the contract in `tests/test_contract.py`.
 
 ## Scoring, tiers, and leaderboards (for the backend)
 
