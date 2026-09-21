@@ -1,6 +1,7 @@
 /* Quest list: daily / monthly cards from nearby opportunities. */
 
-import { api, getLocation } from "../api.js";
+import { api } from "../api.js";
+import { getLocation } from "../location.js";
 import { radiusKm } from "../config.js";
 import {
   directionsUrl, distanceLabel, emptyState, esc, h, ico, icon, orgLink, prettyCategory,
@@ -37,9 +38,9 @@ export async function renderQuests(root) {
     if (!shown.length) {
       list.replaceChildren(emptyState({
         icon: "search",
-        title: filter === "all" ? "No quests within walking distance" : `No ${filter} quests nearby`,
+        title: filter === "all" ? "No quests found near you" : `No ${filter} quests nearby`,
         body: filter === "all"
-          ? "Nothing vetted around here yet. Check back soon, or look at what neighbours have posted."
+          ? "Nothing vetted within 25 miles yet. Check back soon, or look at what neighbours have posted."
           : "Try another filter to see the rest.",
         action: filter === "all" ? null : { label: "Show all quests", onClick: () => root.querySelector('#filters [data-f="all"]').click() },
       }));

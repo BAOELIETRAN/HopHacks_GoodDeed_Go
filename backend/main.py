@@ -24,8 +24,8 @@ import os
 
 from .migrate import backfill_coins, ensure_schema, relax_password_columns
 from .routers import (
-    admin, auth, campaigns, checkins, friends, leaderboard, quests, recap,
-    reports, social, store, submissions, tasks,
+    admin, auth, campaigns, checkins, friends, geocode, leaderboard, quests,
+    recap, reports, social, store, submissions, tasks,
 )
 
 Base.metadata.create_all(bind=engine)
@@ -81,6 +81,7 @@ app.include_router(submissions.router)
 app.include_router(leaderboard.router)
 app.include_router(friends.router)
 app.include_router(reports.router)
+app.include_router(geocode.router)
 app.include_router(admin.router)
 
 

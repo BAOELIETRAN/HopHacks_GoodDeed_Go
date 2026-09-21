@@ -1,7 +1,8 @@
 /* Submission flow -- the core loop.
    Quest detail -> photo + description + time -> POST /submissions -> score. */
 
-import { api, ApiError, getLocation, setSession, state } from "../api.js";
+import { api, ApiError, setSession, state } from "../api.js";
+import { REASON_TEXT, getLocation, isDeviceFix } from "../location.js";
 import {
   deedIcon, directionsUrl, distanceLabel, esc, h, ico, icon, orgLink, prettyCategory,
   setupPhotoInput, stamp, stampDate, toast,
@@ -106,9 +107,22 @@ export function renderQuest(root, { quest }) {
   // Proximity gate. The server enforces this too -- this is only so the
   // button explains itself instead of failing with a 403 after a tap.
   (async () => {
-    const loc = await getLocation();
-    const away = metresAway(loc, quest);
+    const loc = await getLocation({ fresh: true });
     const limit = 200; // matches CHECKIN_RADIUS_M
+
+    // Only a live fix from the device can answer "am I standing there". A
+    // remembered fix or a typed-in city would either lock out someone who is
+    // genuinely on site or wave through someone who is not -- and the distance
+    // it produced ("Get closer to start (2,400km away)") was nonsense anyway,
+    // which is how a quietly defaulted location looked from the outside.
+    if (!isDeviceFix(loc)) {
+      startBtn.disabled = true;
+      startBtn.textContent = "Can't tell where you are";
+      note.textContent = `${REASON_TEXT[loc.reason] || "Your device didn't give us a location."} Starting the clock needs a live fix.`;
+      return;
+    }
+
+    const away = metresAway(loc, quest);
 
     if (away <= limit) {
       startBtn.disabled = false;
@@ -125,7 +139,7 @@ export function renderQuest(root, { quest }) {
     startBtn.disabled = true;
     startBtn.textContent = "Starting…";
     try {
-      const loc = await getLocation();
+      const loc = await getLocation({ fresh: true });
       const session = await api.startCheckin({
         org_name: quest.org_name,
         org_lat: quest.lat,

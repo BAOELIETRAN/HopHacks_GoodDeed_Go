@@ -184,6 +184,7 @@ above.
 ```bash
 ./run.sh                        # start the app
 ./run.sh --seed                 # ...with demo data wiped and reloaded first
+./run.sh --https                # ...over https, for testing location on a phone
 python3 scripts/seed_demo.py    # wipe + reseed the demo dataset, then verify it (see "Demo day")
 python3 scripts/verify_demo.py  # read-only: re-check what is in the database
 python3 scripts/wipe_demo.py    # remove the demo accounts only (real signups are untouched)
@@ -222,6 +223,19 @@ enter `HOPHACKS` (Profile > Join a team).
 **The UI looks old / the map has "API KEY REQUIRED" on it**
 Cached build. Hard-refresh, and make sure you're on `:8000` and not an old
 static server on another port.
+
+**Everything is in Baltimore, wherever I actually am**
+The app could not get a location from the browser and said so in the banner
+across the top; Baltimore is the built-in default it falls back to. The usual
+cause on a phone is the address: browsers only hand a page your location on
+`https://` or `localhost`, so the `http://192.168.x.x` address from `./run.sh`
+never gets one. Restart with `./run.sh --https` and accept the certificate
+warning once. Otherwise the prompt was denied (re-enable location for the site)
+or the device has no GPS. Either way, "Set location" in the banner searches for
+a place and pins the app there, and it sticks until you clear it.
+
+Starting a quest's clock and posting a community report still require a live
+fix, because both are claims about standing in a particular spot.
 
 **Map shows stub orgs like "Riverside Community Food Bank"**
 Those are the mocks. Check `/health` says `"places_provider":"google"`. If it

@@ -89,8 +89,8 @@ export function renderWelcome(root) {
           <p class="eyebrow">Volunteering, close to home</p>
           <h1>Do one good thing near you today.</h1>
           <p class="welcome-lede">
-            GoodDeed Go finds vetted nonprofits and small neighbourhood jobs within
-            walking distance. Do one, take a photo, and it counts.
+            GoodDeed Go finds vetted nonprofits and small neighbourhood jobs
+            around you. Do one, take a photo, and it counts.
           </p>
         </div>
 

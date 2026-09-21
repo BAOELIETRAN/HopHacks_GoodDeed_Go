@@ -1,4 +1,4 @@
-/* App shell: route table, bottom nav, demo-data banner. */
+/* App shell: route table, bottom nav, demo-data and location banners. */
 
 import { state } from "./api.js";
 import { API_BASE } from "./config.js";
@@ -14,6 +14,7 @@ import { renderMarket } from "./screens/market.js";
 import { renderStore } from "./screens/store.js";
 import { maybeShowRecap } from "./recap.js";
 import { startLiveActivity, stopLiveActivity } from "./live.js";
+import { mountLocationBar, primeLocation } from "./locationbar.js";
 import { renderQuests } from "./screens/quests.js";
 import { renderLeaderboard } from "./screens/leaderboard.js";
 import { renderCommunity, renderProof, renderReportForm } from "./screens/community.js";
@@ -105,7 +106,17 @@ fetch(`${API_BASE}/health`)
   .catch(() => { /* unreachable backend is already handled by the mock fallback */ });
 
 buildNav();
+
+// The location notice listens for the first resolved position, so it has to be
+// mounted before any screen asks for one.
+mountLocationBar(document.getElementById("locbanner"));
+
 dispatch();
+
+// Resolve a position on load even on screens that don't need one. Finding out
+// on the Today screen that the app has no idea where you are beats finding out
+// on the map after it has drawn the wrong city.
+if (state.token) primeLocation();
 
 // Weekly recap, once per ISO week, after the first screen has painted so it
 // never delays the app's first render. Signed-out users never see it.

@@ -11,7 +11,8 @@
    someone lose an hour of credit silently.
 */
 
-import { api, ApiError, getLocation } from "../api.js";
+import { api, ApiError } from "../api.js";
+import { getLocation } from "../location.js";
 import { esc, h, ico, icon, toast } from "../ui.js";
 import { go } from "../router.js";
 
@@ -166,7 +167,9 @@ export async function renderActive(root, { checkin: passed } = {}) {
   const beat = async () => {
     let loc;
     try {
-      loc = await getLocation();
+      // Always a new measurement: the server bills time from these, and a
+      // reused position would keep a session alive after the user walked off.
+      loc = await getLocation({ fresh: true });
     } catch {
       return; // one failed fix is not worth ending a session over
     }

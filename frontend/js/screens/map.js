@@ -1,13 +1,22 @@
 /* Map view: quest pins (green) and open community reports (coral). */
 
-import { api, getLocation, state } from "../api.js";
+import { api, state } from "../api.js";
+import { getLocation } from "../location.js";
 import { radiusKm } from "../config.js";
 import {
-  directionsUrl, distanceLabel, emptyState, esc, h, ico, icon, skeleton, toast,
+  directionsUrl, distanceLabel, emptyState, esc, h, ico, icon, skeleton,
 } from "../ui.js";
 import { go } from "../router.js";
 
 let mapInstance = null;
+
+/* How many pins the map will draw. The search now covers a whole county, which
+   returns far more than the dozen this used to show -- and a map that silently
+   hides five sixths of what it found is the same failure as one that shows
+   nothing. The caps are here only to stop a pathological result set from
+   locking up the browser. */
+const MAX_QUEST_PINS = 40;
+const MAX_REPORT_PINS = 20;
 
 export async function renderMap(root) {
   const user = state.user || {};
@@ -35,11 +44,18 @@ export async function renderMap(root) {
 
   root.querySelector("#all-quests").onclick = () => go("quests");
 
+  // An approximate position is reported by the shell's location banner, which
+  // names the town it settled on and offers a way to correct it. A toast said
+  // less, said it once, and only here.
   const loc = await getLocation();
-  if (loc.approximate) toast("Showing a default location. Allow location access to see what's really near you.");
 
-  // Leaflet needs a laid-out container, so build the map after paint.
-  requestAnimationFrame(() => initLeaflet(loc));
+  // Leaflet needs a laid-out container, so build the map after paint. This is
+  // awaited rather than fired and forgotten: drawPins() bails out when there is
+  // no map yet, so whenever the quest fetch won the race -- which is every time
+  // the backend answers from a warm cache -- the pins were dropped on the floor
+  // and the map came up empty with no error anywhere.
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  initLeaflet(loc);
 
   const load = async () => {
     const [quests, reports] = await Promise.all([
@@ -73,13 +89,25 @@ function initLeaflet(loc) {
   L.circleMarker([loc.lat, loc.lng], {
     radius: 8, color: "#fdfbf5", weight: 3, fillColor: "#1b2a22", fillOpacity: 1,
   }).addTo(mapInstance);
+
+  trackZoom();
 }
 
 function drawPins(quests, reports) {
-  if (!mapInstance || !window.L) return;
+  if (!mapInstance || !window.L) {
+    // Not expected any more (renderMap awaits the map now), but a silent
+    // return here is precisely how the empty map hid for so long.
+    console.warn("[gdg] drawPins called with no map; pins dropped");
+    return;
+  }
 
-  for (const q of quests.slice(0, 12)) {
-    const label = `${icon(q.category, { size: 15 })}<span>${esc(q.org_name.split(/[-–|]/)[0].trim())} · +${q.estimated_points ?? ""}</span>`;
+  const placed = [];
+
+  for (const q of quests.slice(0, MAX_QUEST_PINS)) {
+    placed.push([q.lat, q.lng]);
+    const label = `${icon(q.category, { size: 15 })}`
+      + `<span class="pin-name">${esc(q.org_name.split(/[-–|]/)[0].trim())}</span>`
+      + `<span class="pin-pts">+${q.estimated_points ?? 0}</span>`;
     const marker = L.marker([q.lat, q.lng], {
       icon: L.divIcon({ className: "", html: `<div class="map-pin">${label}</div>`, iconSize: null }),
     }).addTo(mapInstance);
@@ -104,12 +132,15 @@ function drawPins(quests, reports) {
     });
   }
 
-  for (const r of reports.slice(0, 10)) {
+  for (const r of reports.slice(0, MAX_REPORT_PINS)) {
+    placed.push([r.lat, r.lng]);
     const text = esc((r.description || "Community need").slice(0, 26));
     const marker = L.marker([r.lat, r.lng], {
       icon: L.divIcon({
         className: "",
-        html: `<div class="map-pin report">${ico("pin", { size: 15 })}<span>${text} · +${r.estimated_points ?? 20}</span></div>`,
+        html: `<div class="map-pin report">${ico("pin", { size: 15 })}`
+          + `<span class="pin-name">${text}</span>`
+          + `<span class="pin-pts">+${r.estimated_points ?? 20}</span></div>`,
         iconSize: null,
       }),
     }).addTo(mapInstance);
@@ -129,6 +160,34 @@ function drawPins(quests, reports) {
         ?.addEventListener("click", () => go("community"));
     });
   }
+
+  frameOn(placed);
+}
+
+/** Zoom out until everything found is actually on screen.
+ *
+ *  A fixed zoom around the user is only right when the nearest thing happens
+ *  to be close. Across a county most of the results sat outside the viewport,
+ *  which looks identical to having found nothing at all.
+ */
+function frameOn(points) {
+  if (!mapInstance || !points.length) return;
+  const bounds = L.latLngBounds([...points, mapInstance.getCenter()]);
+  mapInstance.fitBounds(bounds, { padding: [48, 48], maxZoom: 15 });
+}
+
+/* A county's worth of pins, each carrying an organisation's name, overlaps into
+   an unreadable pile. Below the zoom where the names would fit, pins shrink to
+   an icon and a points figure -- still countable, still tappable for the name,
+   and the map reads as a map again. */
+const NAME_ZOOM = 13;
+
+function trackZoom() {
+  if (!mapInstance) return;
+  const apply = () =>
+    mapInstance.getContainer().classList.toggle("pins-compact", mapInstance.getZoom() < NAME_ZOOM);
+  apply();
+  mapInstance.on("zoomend", apply);
 }
 
 function renderHighlight(container, quests) {
@@ -137,8 +196,8 @@ function renderHighlight(container, quests) {
   if (!q) {
     container.replaceChildren(emptyState({
       icon: "search",
-      title: "No quests within walking distance",
-      body: "Nothing vetted nearby yet. Neighbours may have posted jobs, though.",
+      title: "No quests found near you",
+      body: "Nothing vetted within 25 miles yet. Neighbours may have posted jobs, though.",
       action: { label: "See community jobs", onClick: () => go("community") },
     }));
     return;

@@ -358,10 +358,17 @@ select {
   border: 1.5px solid var(--brand); box-shadow: 0 2px 8px rgba(27, 42, 34, .25);
 }
 .map-pin { transform: translate(-50%, -50%); }
-.map-pin span { max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+.map-pin .pin-name { max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+.map-pin .pin-pts { color: var(--brand); }
 .map-pin .ico { color: var(--brand); }
 .map-pin.report { border-color: var(--alert); }
-.map-pin.report .ico { color: var(--alert); }
+.map-pin.report .ico, .map-pin.report .pin-pts { color: var(--alert); }
+
+/* Zoomed out past the point where names are readable, pins drop to an icon and
+   a points figure. A county of full-width name labels overlaps into a solid
+   block, which hides the very thing the map is for. */
+.pins-compact .map-pin { padding: 5px 9px 5px 7px; gap: 4px; }
+.pins-compact .map-pin .pin-name { display: none; }
 
 .map-legend { display: flex; gap: var(--s5); flex-wrap: wrap; font-size: 13px; color: var(--ink-2); padding: var(--s3) var(--gutter) 0; }
 .legend-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 6px; }
@@ -703,10 +710,52 @@ select {
 }
 .toast.error { background: var(--alert); color: #fff; }
 
+.banners { position: relative; z-index: 2; }
 .banner-mock {
   background: var(--sand); color: var(--sand-ink); font-weight: 500; font-size: 13px; line-height: 1.4;
   padding: 8px var(--gutter); position: relative; z-index: 2; border-bottom: 1px solid #ddd0a8;
 }
+
+/* ---------- Location notice ----------
+   Shown whenever the app is working from anything other than a live fix from
+   the device, because "somewhere plausible" and "where you actually are" look
+   identical on a map. `.urgent` is the case where we have nothing at all and
+   are showing a built-in default, which is actively misleading rather than
+   merely stale. */
+.banner-loc {
+  background: #eaf1ea; color: var(--ink); font-size: 13px; line-height: 1.45;
+  padding: 8px var(--gutter); border-bottom: 1px solid #cfdccf;
+}
+.banner-loc.urgent { background: #fdece7; border-bottom-color: #f2c9bb; }
+.banner-loc-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.banner-loc-icon { display: inline-flex; flex: none; color: var(--brand); }
+.banner-loc.urgent .banner-loc-icon { color: var(--alert); }
+.banner-loc-btn {
+  flex: none; font: inherit; font-weight: 600; color: var(--brand); background: transparent;
+  border: 1px solid currentColor; border-radius: 999px; padding: 3px 11px; cursor: pointer;
+}
+.banner-loc-btn:hover { background: rgba(29, 106, 67, .08); }
+.banner-loc.urgent .banner-loc-btn { color: #a23a1c; }
+.banner-loc.urgent .banner-loc-btn:hover { background: rgba(162, 58, 28, .08); }
+
+/* ---------- Set-your-location sheet ---------- */
+.loc-sheet { display: flex; flex-direction: column; gap: var(--s4); padding-bottom: var(--s4); }
+.loc-or { display: flex; align-items: center; gap: 10px; color: var(--ink-3); font-size: 12px; }
+.loc-or::before, .loc-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.loc-form { display: flex; gap: 8px; }
+.loc-form input {
+  flex: 1; min-width: 0; font: inherit; padding: 11px 12px;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--card); color: var(--ink);
+}
+.loc-form input:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.loc-results { display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow-y: auto; }
+.loc-result {
+  display: flex; flex-direction: column; gap: 2px; text-align: left; font: inherit; cursor: pointer;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--card); color: var(--ink);
+}
+.loc-result:hover { border-color: var(--brand); }
+.loc-result span { font-size: 12px; color: var(--ink-2); }
 
 /* ---------- Welcome ---------- */
 .welcome { padding: var(--s7) var(--gutter) var(--s6); display: flex; flex-direction: column; gap: var(--s7); }
@@ -804,7 +853,7 @@ select {
     grid-template-columns: var(--sidebar-w) 1fr; grid-template-rows: auto 1fr;
     grid-template-areas: "banner banner" "nav main";
   }
-  .banner-mock { grid-area: banner; }
+  .banners { grid-area: banner; }
   /* Signed-out screens have no sidebar to show. */
   #app.bare { grid-template-columns: 1fr; grid-template-areas: "banner" "main"; }
   #app.bare .bottom-nav { display: none; }

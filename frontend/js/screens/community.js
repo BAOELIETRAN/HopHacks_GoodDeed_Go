@@ -1,6 +1,7 @@
 /* Community feed: open reports, claim, submit proof, poster confirms done. */
 
-import { api, ApiError, getLocation, setSession, state } from "../api.js";
+import { api, ApiError, setSession, state } from "../api.js";
+import { REASON_TEXT, getLocation, isDeviceFix } from "../location.js";
 import { radiusKm } from "../config.js";
 import { completionMessage, creditLabel } from "../credit.js";
 import {
@@ -289,7 +290,16 @@ export function renderReportForm(root) {
     sendBtn.disabled = true;
     sendBtn.textContent = "Checking…";
     try {
-      const loc = await getLocation();
+      // A report pins a problem on a public map that neighbours will walk to,
+      // so it needs a fix from the device. A remembered position or a typed-in
+      // city would send people to the wrong street -- and before this check,
+      // a defaulted one filed the report in Baltimore.
+      const loc = await getLocation({ fresh: true });
+      if (!isDeviceFix(loc)) {
+        errEl.textContent = `${REASON_TEXT[loc.reason] || "Your device didn't give us a location."} A report needs a live location so neighbours can find the spot.`;
+        errEl.hidden = false;
+        return;
+      }
       await api.createReport({
         photo_url: photo,
         description,

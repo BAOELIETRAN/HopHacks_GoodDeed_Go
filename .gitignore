@@ -9,3 +9,10 @@ venv/
 backend/gooddeed.db
 
 
+
+# Self-signed certificate for ./run.sh --https (local only, never deployed)
+.devcert/
+
+# Node deps and browser-test artefacts
+node_modules/
+test-results/

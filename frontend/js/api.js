@@ -8,7 +8,7 @@
    `state.usingMocks` flips true the first time a fallback fires, which drives
    the "demo data" banner so nobody mistakes stub data for a working backend. */
 
-import { API_BASE, FALLBACK_LOCATION, FORCE_MOCKS } from "./config.js";
+import { API_BASE, FORCE_MOCKS } from "./config.js";
 import * as mock from "./mock.js";
 
 export const state = {
@@ -199,21 +199,17 @@ export const api = {
   submitProof: (id, payload) => request(`/reports/${id}/proof`, { method: "POST", body: payload }),
   completeReport: (id) => request(`/reports/${id}/complete`, { method: "POST" }),
 
+  // --- location --------------------------------------------------------------
+  // Deliberately no placeholder fallback: someone using these is trying to
+  // correct a wrong location, and canned data would be the original bug.
+  geoSearch: (q) => request(`/geo/search?${qs({ q })}`),
+  geoReverse: (lat, lng) => request(`/geo/reverse?${qs({ lat, lng })}`),
+
   // --- friends ---------------------------------------------------------------
   invite: () => request("/friends/invite", { method: "POST" }),
   join: (invite_code) => request("/friends/join", { method: "POST", body: { invite_code } }),
 };
 
-/* Browser geolocation with a graceful fallback -- a denied prompt must not
-   leave the map empty during a demo. */
-export function getLocation() {
-  return new Promise((resolve) => {
-    const fallback = () => resolve({ ...FALLBACK_LOCATION, approximate: true });
-    if (!navigator.geolocation) return fallback();
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, approximate: false }),
-      fallback,
-      { timeout: 6000, maximumAge: 300000 },
-    );
-  });
-}
+/* Location resolution moved to location.js. It was a six-line helper here that
+   silently resolved a hardcoded coordinate on any failure, which is a policy
+   decision about what to tell the user, not a fetch concern. */
